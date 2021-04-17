@@ -10,7 +10,7 @@ DECLARE SUB op.iny ()
 DECLARE SUB op.tax ()
 DECLARE SUB op.tay ()
 DECLARE SUB emulera ()
-'JohanNES Nintendo-emulator. Version 0.015
+'uNESsential Nintendo-emulator. Version 0.015
 '
 'Nyheter:
 ' * Stack
@@ -49,6 +49,7 @@ OPEN fil$ FOR BINARY AS #1         'Rommen har filnummer #1.
 OPEN "MEMORY.NIN" FOR BINARY AS #2 'Minnet har filnummer #2.
 OPEN "STACK.NIN" FOR BINARY AS #3  'Stacken har filnummer #3.
 reg.pc = 17                        'Skippa 16-bytes-headern...
+reg.sp = 255                       'Stack-pekaren m†ste vara 255.
 emulera                            'B”rja emulera!
 
 SUB emulera
@@ -120,17 +121,17 @@ END SUB
 
 SUB op.pha
 'PHA: L„gg Ackumulatorn p† stacken...
-reg.sp = reg.sp + 1                '™ka stackpekaren med 1.
+reg.sp = reg.sp - 1                'Minska stackpekaren med 1.
 PUT #3, reg.sp, reg.a              'Skriv dit Ackumulatorn.
 END SUB
 
 SUB op.pla
 'PLA: Stackens ”versta byte l„ggs i Ackumulatorn.
 GET #3, reg.sp, reg.a              'Plocka byten.
-reg.sp = reg.sp - 1                'Stackpekaren minskar.
+reg.sp = reg.sp - 1                '™ka stackpekaren med 1.
 
 'OBS! Byten som l„ses in ligger fortfarande kvar i stacken.
-'Detta leder till h”gre hastighet, men det kanske kan leda till haveri.
+'Detta leder till h”gre hastighet, men det kanske ocks† haveri.
 END SUB
 
 SUB op.tax
