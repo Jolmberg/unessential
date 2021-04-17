@@ -1,3 +1,4 @@
+DECLARE SUB op.lsr (typ!)
 DECLARE SUB op.sta (typ!)
 DECLARE SUB op.pla ()
 DECLARE SUB op.pha ()
@@ -11,11 +12,14 @@ DECLARE SUB op.iny ()
 DECLARE SUB op.tax ()
 DECLARE SUB op.tay ()
 DECLARE SUB emulera ()
-'uNESsential Nintendo-emulator. Version 0.020
+DEFINT R
+'uNESsential Nintendo-emulator. Version 0.025
 '
 'Nyheter:
-' Fler LDA-varianter...
-' N†gra STA-varianter...
+' LSR p† Ackumulatorn...
+' Fler STA-varianter...
+' Stacken funkar nog...
+'
 'Minne emuleras genom filen MEMORY.NIN.
 'Stacken emuleras genom filen STACK.NIN.
 'Alla opcode-funktioner heter op_???(_?).
@@ -54,6 +58,7 @@ reg.pc = 17                        'Skippa 16-bytes-headern...
 reg.sp = 255                       'Stack-pekaren m†ste vara 255.
 emulera                            'B”rja emulera!
 
+DEFSNG R
 SUB emulera
 byte$ = " "
 DO
@@ -76,6 +81,7 @@ SELECT CASE ASC(byte$)
    CASE &H95: op.sta (2)
    CASE &H80: op.sta (3)
    CASE &H90: op.sta (4)
+   CASE &H99: op.sta (5)
 
    CASE &HA9: op.lda (1)
    CASE &HA5: op.lda (2)
@@ -88,6 +94,8 @@ SELECT CASE ASC(byte$)
 
    CASE &H48: op.pha
    CASE &H68: op.pla
+
+   CASE &H4A: op.lsr (1)
 END SELECT
 reg.pc = reg.pc + 1
 LOOP
@@ -97,11 +105,13 @@ END SUB
 SUB op.dex
 'DEX: X-registret minskas med 1.
 reg.x = reg.x - 1
+IF reg.x = 0 THEN reg.s.z = 1      'Om noll s„tts z-flagen
 END SUB
 
 SUB op.dey
 'DEY: Y-registret minskas med 1.
 reg.y = reg.y - 1
+IF reg.y = 0 THEN reg.s.z = 1      'Om noll s„tt z-flagen...
 END SUB
 
 SUB op.inx
@@ -158,6 +168,16 @@ IF reg.a = 0 THEN reg.s.z = 1      'Z-flagen s„tts om Ackumulatorn „r 0.
 
 END SUB
 
+DEFINT R
+SUB op.lsr (typ)
+SELECT CASE typ
+   CASE 1                          'Ackumulatorn...
+      z = reg.a / 2                'skifta h”ger
+      reg.a = z
+      IF z AND .5 THEN reg.s.c = 1 'Om utanf”r s„tt carry
+END SUB
+
+DEFSNG R
 SUB op.pha
 'PHA: L„gg Ackumulatorn p† stacken...
 reg.sp = reg.sp - 1                'Minska stackpekaren med 1.
@@ -167,12 +187,13 @@ END SUB
 SUB op.pla
 'PLA: Stackens ”versta byte l„ggs i Ackumulatorn.
 GET #3, reg.sp, reg.a              'Plocka byten.
-reg.sp = reg.sp - 1                '™ka stackpekaren med 1.
-
+reg.sp = reg.sp + 1                '™ka stackpekaren med 1.
+IF reg.a = 0 THEN reg.s.z = 1      'Om noll s„tt z-flagen.
 'OBS! Byten som l„ses in ligger fortfarande kvar i stacken.
-'Detta leder till h”gre hastighet, men det kanske ocks† haveri.
+'Detta leder till h”gre hastighet, men kanske ocks† haveri. Troligtvis inte.
 END SUB
 
+DEFINT A-B
 SUB op.sta (typ)
 SELECT CASE typ
    CASE 1 TO 2                       'Zero Page. En operand.
@@ -181,13 +202,19 @@ SELECT CASE typ
       IF typ = 2 THEN a = a + reg.x
       PUT #2, a, reg.a
 
-   CASE 3 TO 4
+   CASE 3 TO 5
       reg.pc = reg.pc + 2
-      get #1,re.pc-1,
+      GET #1, reg.pc, a
+      GET #1, reg.pc - 1, b
+      a = a + 256 * b
+      IF typ = 4 THEN a = a + reg.x
+      IF typ = 5 THEN a = a + reg.y
+      PUT #2, a, reg.a
 
 
 END SUB
 
+DEFSNG A-B
 SUB op.tax
 'TAX: Inneh†llet i Ackumulatorn f”rs ”ver till X-registret.
 reg.x = reg.a
