@@ -62,17 +62,15 @@ SCREEN 12
 'Status: SV1BDIZC
 ' Alla register m†ste vara share-ade...
 loadfont       'Ladda in fonten...
-DIM SHARED reg.a, reg.x, reg.y, reg.s, pc, reg.sp, fil$, byte$, opcode$, cycles, nmi, ut, bokstav(52, 5), bytes, rabies, vramposi
+DIM SHARED reg.a, reg.x, reg.y, reg.s, pc, reg.sp, fil$, byte$, opcode$, cycles, nmi, ut, bokstav(52, 5), bytes, rabies, vramposi, vblank
 
-'uNESsential Nintendo-emulator. Version 0.085
+'uNESsential Nintendo-emulator. Version 0.090
 '
 'Nyheter:
-' V„rdel”s grafikmotor.
-' Register $2006 och $2007
-' VRAM emuleras.
-' Ritar upp Pattern Tablesar.
-' BCC(!?) Fattades tydligen.
-' NOP implementerad(!) :)
+' ASL/ORA Zero Page (, X)
+' LSR/ROR Zero Page, ROR Zero Page, X.
+' Tv† sista LDXarna implementerade.
+' Grafikmotorn „r inte HELT defekt... ;)
 '
 'Allm„n info:
 'VBlank-cycles-talet „r f”rmodligen fel.
@@ -104,7 +102,7 @@ INPUT "Load ROM:", fil$
 CLS
 'LINE (0, 0)-(256, 224), 8, B
 
-
+KILL "vram.nin"
 'F”rberedelser...
 OPEN fil$ FOR BINARY AS #1         'Rommen har filnummer #1.
 OPEN "MEMORY.NIN" FOR BINARY AS #2 'Minnet har filnummer #2. OBS Byte 1=0
@@ -127,11 +125,13 @@ SUB crappygfxengine
 DIM tile(7, 7)
 'F”rmodligen den s„msta grafikmotor som n†gonsin skapats...
 bytes$ = STRING$(960, " ")
-GET #4, 8097, bytes$
+GET #4, 8193, bytes$
 FOR c = 1 TO 960
-   a = 256 + (ASC(MID$(bytes$, c, 1)) AND 15)
-   b = 300 + (ASC(MID$(bytes$, c, 1)) AND 240) / 16
+   a = 128 + ((ASC(MID$(bytes$, c, 1)) AND 15) * 8)
+   b = 300 + ((ASC(MID$(bytes$, c, 1)) AND 240) / 2)
    GET (a, b)-(a + 7, b + 7), tile
+   'PSET (a, b), 12
+   
    PUT (x, y), tile, PSET
    x = x + 8
    IF x = 256 THEN y = y + 8: x = 0
@@ -140,15 +140,15 @@ END SUB
 
 SUB cycle (r)
 cycles = cycles + r
+IF vblank = 1 THEN
 IF cycles >= 2599 THEN
    cycles = 7
    a% = anybyte(&H2003)             'fixa VBlank-biten...
-   a% = a% OR 128
+   a% = a% AND 127
    putbyte a%, &H2003
    vblank = 0
 END IF
-
-IF vblank = 0 THEN
+END IF
 IF cycles >= 27007 THEN
    'BEEP: BEEP: BEEP: BEEP: BEEP: BEEP
    vblank = 1
@@ -160,14 +160,12 @@ IF cycles >= 27007 THEN
    push b%
    push a%
    push reg.s        'L„gg status p† stacken...
-   PRINT reg.s
    a% = anybyte(&H2003)
    a% = a% OR 128
    putbyte a%, &H2003
    'opcode$ = "vblank: hoppar till " + HEX$(nmi)
    pc = nmi
    crappygfxengine    'Vederv„rdig grafikmotor som borde f”rbjudas!
-END IF
 END IF
 END SUB
 
@@ -223,7 +221,9 @@ SELECT CASE ASC(byte$)
    CASE &HA2: op.ldx (1)
    CASE &HA6: op.ldx (2)
    CASE &HB6: op.ldx (3)
-  
+   CASE &HAE: op.ldx (4)
+   CASE &HBE: op.ldx (5)
+
    CASE &HA0: op.ldy (1)
    CASE &HA4: op.ldy (2)
    CASE &HB4: op.ldy (3)
@@ -235,11 +235,23 @@ SELECT CASE ASC(byte$)
    CASE &H68: op.pla
 
    CASE &H4A: op.lsr (1)
+   CASE &H46: op.lsr (2)
+  
    CASE &HA: op.asl (1)
+   CASE &H6: op.asl (2)
+   CASE &H16: op.asl (3)
+
    CASE &H29: op.and (1)
+  
    CASE &H9:  op.ora (1)
+   CASE &H5: op.ora (2)
+   CASE &H15: op.ora (3)
+  
    CASE &H2A: op.rol (1)
+  
    CASE &H6A: op.ror (1)
+   CASE &H66: op.ror (2)
+   CASE &H76: op.ror (3)
 
    CASE &H38: op.sec
    CASE &HF8: op.sed
@@ -343,7 +355,7 @@ SUB header
 bytes$ = STRING$(32767, CHR$(0))
 PUT #2, 1, bytes$
 PUT #2, 32768, bytes$
-
+'KILL "vram.nin"
 
 GET #1, 5, byte$
 bytes$ = ""
@@ -461,14 +473,24 @@ SELECT CASE typ
    CASE 1
       reg.a = reg.a * 2
       IF reg.a > 255 THEN reg.a = reg.a - 256: reg.s = reg.s OR 1
+      b% = reg.a
       'Om utanf”r: S„tt c-flagen...
       opcode$ = "ASL"
       cycle 2
+   CASE 2 TO 3                   'Zero Page (X).
+      a = getbyte
+      IF typ = 3 THEN a = a + reg.x
+      b% = anybyte(a + 1)
+      b% = b% * 2
+      IF b% > 255 THEN b% = b% - 256: reg.s = reg.s OR 1
+      putbyte b%, a + 1
+      opcode$ = "ASL $" + HEX$(a)
+      IF typ = 3 THEN opcode$ = "ASL $" + HEX$(a - reg.x) + ", X"
+      cycle 5
 END SELECT
-
-
-reg.s = reg.s AND 253
-IF reg.a = 0 THEN reg.s = reg.s OR 2
+reg.s = reg.s AND 125
+IF b% = 0 THEN reg.s = reg.s OR 2
+IF b% > 127 THEN reg.s = reg.s OR 128
 END SUB
 
 SUB op.bcc
@@ -751,13 +773,22 @@ SELECT CASE typ
       reg.x = getbyte
       opcode$ = "LDX #$" + HEX$(reg.x)
       cycle 2
-   CASE 2, 3                       'Zero Page (Y)
+   CASE 2 TO 3                       'Zero Page (Y)
       reg.x = getbyte
       IF typ = 3 THEN reg.x = reg.x + reg.y
       reg.x = anybyte(reg.x + 1)
       IF typ = 2 THEN opcode$ = "LDX $" + HEX$(a)
       IF typ = 3 THEN opcode$ = "LDX $" + HEX$(a - reg.y) + ",X  =" + HEX$(a)
       cycle typ + 1
+   CASE 4 TO 5
+      a = getbyte
+      b = getbyte
+      a = a + b * 256
+      IF typ = 5 THEN a = a + reg.y
+      reg.x = anybyte(a + 1)
+      opcode$ = "LDX $" + HEX$(a)
+      IF typ = 5 THEN opcode$ = opcode$ + ", y"
+      cycle 4                             'OBS 5:an „r konstig.
 END SELECT
 reg.s = reg.s AND 125
 IF reg.x = 0 THEN reg.s = reg.s OR 2
@@ -791,12 +822,22 @@ SELECT CASE typ
    CASE 1                          'Ackumulatorn...
       z = reg.a / 2                'skifta h”ger  -Misst„nkt fel...
       reg.a = z
+      b% = reg.a
       IF z AND .5 THEN reg.s = reg.s OR 1 'Om utanf”r s„tt carry
       opcode$ = "LSR"
       cycle 2
+   CASE 2                     'Zero Page
+      a = getbyte
+      b% = anybyte(a + 1)
+      z = b% / 2
+      b% = z
+      IF z AND .5 THEN reg.s = reg.s OR 1
+      putbyte b%, a + 1
+      opcode$ = "lsr $" + HEX$(a)
+      cycle 5
 END SELECT
-reg.s = reg.s AND 253
-IF reg.a = 0 THEN reg.s = reg.s OR 2
+reg.s = reg.s AND 252
+IF b% = 0 THEN reg.s = reg.s OR 2
 
 
 END SUB
@@ -807,11 +848,18 @@ SUB op.ora (typ)
 'ORA: ORa Ackumulatorn med operand/minne. Reultat i Ackumulatorn.
 SELECT CASE typ
    CASE 1
-      pc = pc + 1
-      GET #2, pc, byte$            'Plocka operanden
-      reg.a = reg.a OR ASC(byte$)  'ORa den med Ackumulatorn.
+      a = getbyte
+      reg.a = reg.a OR a  'ORa den med Ackumulatorn.
       opcode$ = "ORA #$" + HEX$(a)
       cycle 2
+   CASE 2 TO 3
+      a = getbyte
+      IF typ = 3 THEN a = a + reg.x
+      b = anybyte(a + 1)
+      reg.a = reg.a OR b
+      opcode$ = "ORA $" + HEX$(a)
+      IF typ = 3 THEN opcode$ = "ORA $" + HEX$(a - reg.x) + ", x"
+      cycle typ + 1
 END SELECT
 
 reg.s = reg.s AND 125
@@ -862,21 +910,34 @@ SELECT CASE typ
       r = reg.a
       z = reg.a / 2
       reg.a = z
-      IF r AND 1 THEN reg.a = reg.a + 128: reg.s = reg.s OR 1'Vet ej...
-      'Om utanf”r: K”r runt med carry.
+      IF (reg.s AND 1) THEN reg.a = reg.a OR 128
+      IF (r AND 1) THEN reg.s = reg.s OR 1
+      IF (r AND 1) = 0 THEN reg.s = reg.s AND 254
+      ra = reg.a
       opcode$ = "ROR"
       cycle 2
+   CASE 2 TO 3
+      a = getbyte
+      IF typ = 3 THEN a = a + reg.x       'Borde wrappa...
+      r = anybyte(a + 1)
+      z = r / 2
+      ra = z
+      IF (reg.s AND 1) THEN ra = ra OR 128
+      IF (r AND 1) THEN reg.s = reg.s OR 1
+      IF (r AND 1) = 0 THEN reg.s = reg.s AND 254
+      opcode$ = "ROR $" + HEX$(a)
+      IF typ = 3 THEN opcode$ = "ror $" + HEX$(a - reg.x) + ", x"
+      putbyte ra, a + 1
+      cycle 5
 END SELECT
 reg.s = reg.s AND 125
-IF reg.a = 0 THEN reg.s = reg.s OR 2
-IF reg.a > 127 THEN reg.a = reg.a OR 128
+IF ra = 0 THEN reg.s = reg.s OR 2
+IF ra > 127 THEN reg.a = reg.a OR 128
 END SUB
 
 SUB op.rti
 'RTI: Return from Interrupt
-PRINT "Just nu:"; reg.s
 reg.s = pop
-PRINT reg.s
 a = pop
 b = pop
 pc = a + b * 256
@@ -1122,7 +1183,6 @@ IF posi >= &H2000 THEN              'Mer „n $1FFF?
          IF rabies = 1 THEN
             vramposi = (vramposi + ASC(byte$)): rabies = 0
          ELSE
-            PRINT ASC(byte$)
             vramposi = ASC(byte$)         'Slintmeck pga slint-QBasic
             vramposi = vramposi * 256
             '''vramposi = (ASC(byte$) * 256): rabies = 1
@@ -1136,6 +1196,7 @@ END IF
 END SUB
 
 SUB utskrift
+IF INKEY$ <> "" THEN cycles = 27007
 moveup
 COLOR 9
 hagla 460, 409, LCASE$("$" + HEX$(bytes) + " " + opcode$)
@@ -1166,8 +1227,9 @@ IF (reg.s AND 128) = 128 THEN COLOR 7
 hagla 608, 416, "s"
 'PRINT "     Cycles:"; cycles
 'PRINT
-SLEEP
-a$ = INKEY$
+'SLEEP
+'a$ = INKEY$
+
 
 END SUB
 
