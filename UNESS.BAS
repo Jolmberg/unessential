@@ -1,3 +1,4 @@
+DECLARE SUB op.sbc (typ!)
 DECLARE SUB op.brk ()
 DECLARE SUB op.php ()
 DECLARE SUB op.plp ()
@@ -69,20 +70,25 @@ SCREEN 12
 'Status: SV1BDIZC
 ' Alla register m†ste vara share-ade...
 loadfont       'Ladda in fonten...
-DIM SHARED reg.a, reg.x, reg.y, reg.s, pc, reg.sp, fil$, byte$, opcode$, cycles, nmi, ut, bokstav(52, 5), bytes, rabies, vramposi, vblank, ppu1, brk
-
-'uNESsential Nintendo-emulator. Version 0.105
+DIM SHARED reg.a, reg.x, reg.y, reg.s, pc, reg.sp, fil$, byte$, opcode$
+DIM SHARED cycles, nmi, ut, bokstav(52, 5), bytes, rabies, vramposi, vblank
+DIM SHARED ppu1, brk, sprramposi, sprram$, ppustat
+sprram$ = STRING$(256, CHR$(0))
+'uNESsential Nintendo-emulator. Version 0.110
 '
 'Nyheter:
-' Idiot-bugg i LDY fixad. Wrappade helt fel :)
-' Man kan l„sa fr†n videominnet.
-' Stacken emuleras r„tt.
-' Zero Page-ADCarna implementerade.
-' ADC „r f”r„ndrad. Kanske f”rb„ttrad.
+' Zero Page-ANDarna. Lode Runner-titelbilden funkar.
+' De tv† sista DECarna.
+' 1 SBC.
+' BIT lite fixad. Var helt trasig.
+' Diverse sm†saker.
+' VRAM-pekaren ”kas „ven vid l„sning.
+' 8x8-sprites.
 '
 'Allm„n info:
 'RAM-minne emuleras genom filen MEMORY.NIN.
-'VRAM emuleras genom VRAM.NIN
+'VRAM emuleras genom VRAM.NIN.
+'Sprite-RAM emuleras genom sprram$.
 'Alla opcode-funktioner heter op.???(?).
 'Register emuleras genom variabler.
 'Alla register-variabler heter reg.?. (undantag: pc, som inte f†r vara INT)
@@ -114,7 +120,7 @@ OPEN "MEMORY.NIN" FOR BINARY AS #2 'Minnet har filnummer #2. OBS Byte 1=0
 OPEN "VRAM.NIN" FOR BINARY AS #4   'VRAM har filnummer #4.
 reg.s = 32                         'Status-bit 6=1
 pc = 17                            'Skippa 16-bytes-headern...
-reg.sp = 255 'Kanske 256...        'Stack-pekaren m†ste vara 255.
+reg.sp = 255                       'Stack-pekaren m†ste vara 255.
 header
 LINE (459, 407)-(639, 407), 8, , 21845
 patterntables
@@ -124,14 +130,26 @@ FUNCTION anybyte% (posi)
 GET #2, posi, byte$
 anybyte = ASC(byte$)
 
-IF posi = &H2008 THEN GET #4, vramposi + 1, anybyte%
+IF posi > &H2000 THEN
+IF posi < &H2009 THEN
 
+IF posi = &H2003 THEN anybyte% = ppustat
+IF posi = &H2005 THEN anybyte% = ASC(MID$(sprram$, sprramposi + 1))
+IF posi = &H2008 THEN
+   okn = 1
+   IF (ppu1 AND 4) THEN okn = 32
+   GET #4, vramposi + 1, anybyte%
+   vramposi = vramposi + okn
+END IF
+
+END IF
+END IF
 END FUNCTION
 
-SUB crappygfxengine
+SUB crappygfxengine 'F”rmodligen den s„msta grafikmotor som n†gonsin skapats...
+'Bakgrund.
 DIM tile(7, 7)
 IF (ppu1 AND 16) = 16 THEN okning = 128
-'F”rmodligen den s„msta grafikmotor som n†gonsin skapats...
 o = ppu1 AND 3
 IF o = 0 THEN adr = &H2000
 IF o = 1 THEN adr = &H2400
@@ -150,6 +168,18 @@ FOR c = 1 TO 960
    x = x + 8
    IF x = 256 THEN y = y + 8: x = 0
 NEXT c
+'Sprites.
+FOR c = 1 TO 256 STEP 4
+   y = ASC(MID$(sprram$, c))
+   x = ASC(MID$(sprram$, c + 3))
+   a = ((ASC(MID$(sprram$, c + 1, 1)) AND 15) * 8)
+   b = 300 + ((ASC(MID$(sprram$, c + 1, 1)) AND 240) / 2)
+   FOR cy = 0 TO 7
+      FOR cx = 0 TO 7
+         IF POINT(a + cx, b + cy) > 0 THEN PSET (x + cx, y + cy + 1), POINT(a + cx, b + cy)
+      NEXT cx
+   NEXT cy
+NEXT c
 END SUB
 
 SUB cycle (r)
@@ -162,7 +192,7 @@ IF cycles >= 2599 THEN
    a% = a% AND 127
    putbyte a%, &H2003
    vblank = 0
-   ut = 0
+   'ut = 0
 END IF
 END IF
 IF cycles >= 27007 THEN
@@ -212,6 +242,9 @@ SELECT CASE ASC(byte$)
 
    CASE &HC6: op.dec (1)
    CASE &HD6: op.dec (2)
+   CASE &HCE: op.dec (3)
+   CASE &HDE: op.dec (4)
+
    CASE &HE8: op.inx
    CASE &HC8: op.iny
 
@@ -251,8 +284,7 @@ SELECT CASE ASC(byte$)
    CASE &HB4: op.ldy (3)
    CASE &HAC: op.ldy (4)
    CASE &HBC: op.ldy (5)
-
-
+  
    CASE &HCA: op.dex
    CASE &H88: op.dey
 
@@ -269,7 +301,9 @@ SELECT CASE ASC(byte$)
    CASE &H16: op.asl (3)
 
    CASE &H29: op.and (1)
-  
+   CASE &H25: op.and (2)
+   CASE &H35: op.and (3)
+
    CASE &H9: op.ora (1)
    CASE &H5: op.ora (2)
    CASE &H15: op.ora (3)
@@ -334,6 +368,8 @@ SELECT CASE ASC(byte$)
    CASE &H65: op.adc (2)
    CASE &H75: op.adc (3)
 
+   CASE &HE9: op.sbc (1)
+
    CASE &H0: op.brk
   
    CASE &H40: op.rti
@@ -341,7 +377,7 @@ SELECT CASE ASC(byte$)
    CASE &HEA: cycle 2
   
    CASE ELSE: opcode$ = "Oimplementerad :(": PRINT HEX$(ASC(byte$)): PRINT HEX$(pc - 1): SLEEP
- END SELECT
+END SELECT
 SELECT CASE INKEY$
    CASE "u": ut = 1
    CASE "a": ut = 0
@@ -501,8 +537,7 @@ LINE (460, 409)-(639, 423), 0, BF
 END SUB
 
 SUB op.adc (typ)
-'ADC: L„gg till operanden (adressen) till Ackumulatorn
-'Den h„r „r n„stan helt s„kert fel-emulerad...
+'ADC: L„gg till operanden (minnes-byten) och C-flagen till Ackumulatorn
 SELECT CASE typ
    CASE 1               'Direkt. En operand.
       a = getbyte + (reg.s AND 1)
@@ -535,13 +570,23 @@ SELECT CASE typ
    CASE 1
       r = getbyte
       opcode$ = "AND #$" + HEX$(r)
-      cycle 2
+      cy = 2
+   CASE 2 TO 3
+      a = getbyte
+      opcode$ = "AND $" + HEX$(a)
+      IF typ = 3 THEN
+         a = a + reg.x
+         IF a > 255 THEN a = a - 256
+         opcode$ = opcode$ + ", X"
+      END IF
+      cy = typ + 1
 END SELECT
+IF typ > 1 THEN r = anybyte(a + 1)
 reg.a = reg.a AND r
 reg.s = reg.s AND 125
 IF reg.a = 0 THEN reg.s = reg.s OR 2
 IF reg.a > 127 THEN reg.s = reg.s OR 128
-
+cycle cy
 END SUB
 
 SUB op.asl (typ)
@@ -619,10 +664,10 @@ SELECT CASE typ
       b = anybyte(a + 1)
       cy = 4
 END SELECT
-reg.a = (reg.a AND b)
-reg.s = (reg.s OR (reg.a AND 171))
+a = (reg.a AND b)
+reg.s = (reg.s OR (b AND 192))
 reg.s = reg.s AND 253
-IF reg.a = 0 THEN reg.s = reg.s OR 2
+IF a = 0 THEN reg.s = reg.s OR 2
 
 END SUB
 
@@ -807,22 +852,33 @@ SUB op.dec (typ)
 SELECT CASE typ
    CASE 1 TO 2
       a = getbyte
+      opcode$ = "DEC $" + HEX$(a)
       IF typ = 2 THEN
          a = a + reg.x
          IF a > 255 THEN a = a - 256
+         opcode$ = opcode$ + ", X"
       END IF
-      b = anybyte(a + 1)
-      cycle 4 + typ
+      cy = 4 + typ
+   CASE 3 TO 4
+      a = getbyte
+      b = getbyte
+      a = a + b * 256
+      opcode$ = "DEC $" + HEX$(a)
+      IF typ = 2 THEN
+         a = a + reg.x
+         IF a > 65535 THEN a = a - 65536
+         opcode$ = opcode$ + ", X"
+      END IF
+      cy = typ + 3
 END SELECT
+b = anybyte(a + 1)
 b = b - 1
 IF b = -1 THEN b = 255
 reg.s = reg.s AND 125
 IF b = 0 THEN reg.s = reg.s OR 2
 IF b > 127 THEN reg.s = reg.s OR 128
-IF typ = 1 THEN opcode$ = "DEC $" + HEX$(a)
-IF typ = 2 THEN opcode$ = "DEC $" + HEX$(a - reg.x) + ", X"
 putbyte INT(b), a + 1
-
+cycle cy
 END SUB
 
 SUB op.dex
@@ -1300,6 +1356,24 @@ opcode$ = "RTS"
 cycle 6
 END SUB
 
+SUB op.sbc (typ)
+'SBC: Ackumulatorn - operanden/minnesbyten - C
+SELECT CASE typ
+   CASE 1
+      a = getbyte
+      cy = 2
+END SELECT
+IF (a AND 128) THEN a = a - 256
+reg.a = reg.a - a
+reg.s = reg.s AND 60
+IF (reg.a > 255) OR (reg.a) < 0 THEN reg.s = reg.s OR 64    'V?
+IF reg.a > 255 THEN reg.a = reg.a - 256: reg.s = reg.s OR 1 'C?
+IF reg.a = 0 THEN reg.s = reg.s OR 2                        'Z?
+IF reg.a < 0 THEN reg.a = reg.a + 256: reg.s = reg.s OR 128 'S?
+cycle cy
+
+END SUB
+
 SUB op.sec
 'SEC: S„tt Carry-flagen.
 reg.s = reg.s OR 1
@@ -1523,18 +1597,17 @@ END SUB
 
 SUB putbyte (byte%, posi)
 byte$ = CHR$(byte%)
-PUT #2, posi, byte$
-PUT #2, posi + &H800, byte$
-PUT #2, posi + &H1000, byte$
-PUT #2, posi + &H1800, byte$
 
 'Kolla om n†gon speciell adress „r „ndrad.
-
-
 IF posi >= &H2001 THEN              'Mer „n $1FFF?
    IF posi <= &H2008 THEN           'Mindre „n $2008?
-      
+     
       IF posi = &H2001 THEN ppu1 = byte%
+    
+      IF posi = &H2003 THEN ppustat = byte%
+      IF posi = &H2004 THEN sprramposi = byte%
+      IF posi = &H2005 THEN sprramposi = sprramposi + 1: MID$(sprram$, sprramposi, 1) = byte$
+     
       IF posi = &H2007 THEN         'Žndra adress f”r VRAM-l„sning/skrivning.
          vramposi = (vramposi AND 255) * 256 + byte%
          'IF rabies = 1 THEN
@@ -1548,12 +1621,25 @@ IF posi >= &H2001 THEN              'Mer „n $1FFF?
          'END IF
       END IF
       okn = 1
-      IF (ppu1 AND 4) = 4 THEN okn = 32
+      IF (ppu1 AND 4) THEN okn = 32
       IF posi = &H2008 THEN PUT #4, vramposi + 1, byte$: vramposi = vramposi + okn: BEEP
       LOCATE 3, 40: PRINT HEX$(vramposi) + " = " + HEX$(byte%)
                         'Skriv till VRAM, och ”ka VRAM-"pointern".
+      IF posi = &H4015 THEN PRINT "Transfer!"
+      EXIT SUB
    END IF
 END IF
+
+IF posi >= &H4001 THEN
+IF posi <= &H4018 THEN
+EXIT SUB
+END IF
+END IF
+
+PUT #2, posi, byte$
+PUT #2, posi + &H800, byte$
+PUT #2, posi + &H1000, byte$
+PUT #2, posi + &H1800, byte$
 
 END SUB
 
