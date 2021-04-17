@@ -1,3 +1,8 @@
+DECLARE SUB utskrift ()
+DECLARE SUB op.ldx (typ!)
+DECLARE SUB op.rol (typ!)
+DECLARE SUB op.ror (typ!)
+DECLARE SUB op.asl (typ!)
 DECLARE SUB op.sec ()
 DECLARE SUB op.sed ()
 DECLARE SUB op.cli ()
@@ -21,32 +26,34 @@ DECLARE SUB op.tax ()
 DECLARE SUB op.tay ()
 DECLARE SUB emulera ()
 DEFINT R
-'uNESsential Nintendo-emulator. Version 0.03
+DIM SHARED reg.a, reg.x, reg.y, reg.s.c, reg.s.z, reg.s.i, reg.s.d, reg.s.b, reg.s.v, reg.s.s, pc, reg.sp, fil$, byte$
+
+'uNESsential Nintendo-emulator. Version 0.035
 '
 'Nyheter:
-' Alla Set-och-Clear-opcoder...
-' ORA-opcoden. 1 variant
+' Dumpar outputen till sk„rmen...
+' N†gra LDX-varianter...
+' M†nga buggar fixade...
+'
 '
 'Minne emuleras genom filen MEMORY.NIN.
 'Stacken emuleras genom filen STACK.NIN.
 'Alla opcode-funktioner heter op_???(_?).
 'Register emuleras genom variabler.
-'Alla register-variabler heter reg.??.
+'Alla register-variabler heter reg.??. (undantag: pc)
 
 'Variabler:
 'fil$ - Filnamn p† rommen som k”rs.
 'byte - variabel f”r h„mtning av en byte.
 
-SCREEN 12
 ' Alla register m†ste vara share-ade...
-DIM SHARED reg.a, reg.x, reg.y, reg.s.c, reg.s.z, reg.s.i, reg.s.d
-DIM SHARED reg.s.b, reg.s.v, reg.s.s, reg.pc, reg.sp
+
 'WARNING! Sharea inte "byte$". D† blir det haveri.
 
 '™vriga share-ade variabler...
-DIM SHARED fil$, byte$
-byte$ = STRING$(1, " ")
 
+byte$ = STRING$(1, " ")
+CLS
 'Ladda in en rom...
 COLOR 9
 INPUT "Load ROM:", fil$
@@ -54,24 +61,24 @@ INPUT "Load ROM:", fil$
 
 'Rita lite saker...
 CLS
-LINE (0, 0)-(256, 224), 8, B
+'LINE (0, 0)-(256, 224), 8, B
 
 
 'F”rberedelser...
 OPEN fil$ FOR BINARY AS #1         'Rommen har filnummer #1.
 OPEN "MEMORY.NIN" FOR BINARY AS #2 'Minnet har filnummer #2.
 OPEN "STACK.NIN" FOR BINARY AS #3  'Stacken har filnummer #3.
-reg.pc = 17                        'Skippa 16-bytes-headern...
+pc = 17                        'Skippa 16-bytes-headern...
 reg.sp = 255                       'Stack-pekaren m†ste vara 255.
 emulera                            'B”rja emulera!
 
-DEFSNG R
 SUB emulera
 byte$ = " "
+pc = 17
 DO
 
-GET #1, reg.pc, byte$
-
+GET #1, pc, byte$
+PRINT HEX$(ASC(byte$)); " ";
 'En miljard case-ar!
 'OBS! B”r sorteras i ordningen: vanligast f”rst - ovanligast sist...
 
@@ -96,6 +103,10 @@ SELECT CASE ASC(byte$)
    CASE &HAD: op.lda (4)
    CASE &HBD: op.lda (5)
   
+   CASE &HA2: op.ldx (1)
+   CASE &HA6: op.ldx (2)
+   CASE &HB6: op.ldx (3)
+  
    CASE &HCA: op.dex
    CASE &H88: op.dey
 
@@ -103,7 +114,10 @@ SELECT CASE ASC(byte$)
    CASE &H68: op.pla
 
    CASE &H4A: op.lsr (1)
+   CASE &HA: op.asl (1)
    CASE &H9:  op.ora (1)
+   CASE &H2A: op.rol (1)
+   CASE &H6A: op.ror (1)
 
    CASE &H38: op.sec
    CASE &HF8: op.sed
@@ -114,54 +128,81 @@ SELECT CASE ASC(byte$)
    CASE &H58: op.cli
    CASE &HB8: op.clv
 
+   CASE ELSE: PRINT "Oimplementerad :("
 END SELECT
-reg.pc = reg.pc + 1
+utskrift
+pc = pc + 1
+
+
 LOOP
 
 END SUB
 
-DEFINT R
+SUB op.asl (typ)
+'ASL: Shift Left...
+
+SELECT CASE typ
+   CASE 1
+      reg.a = reg.a * 2
+      IF reg.a > 255 THEN reg.a = reg.a - 256: reg.s.c = 1
+      'Om utanf”r: S„tt c-flagen...
+      PRINT "ASL"
+END SELECT
+END SUB
+
 SUB op.clc
 'CLC: Rensa carry-flagen...
 reg.s.c = 0
+PRINT "CLC"
 END SUB
 
 SUB op.cld
 'CLD: Rensa Decimal-flagen.
 reg.s.d = 0
+PRINT "CLD"
 END SUB
 
 SUB op.cli
 'CLI: Rensa Interrupt disable-flagen.
 reg.s.i = 0
+PRINT CLI
 END SUB
 
 SUB op.clv
 'CLV: Rensa Owerflow-flagen.
 reg.s.v = 0
+PRINT CLV
 END SUB
 
-DEFSNG R
 SUB op.dex
 'DEX: X-registret minskas med 1.
 reg.x = reg.x - 1
 IF reg.x = 0 THEN reg.s.z = 1      'Om noll s„tts z-flagen
+IF reg.x = -1 THEN reg.x = 255     'Kanske n†t konstigt...
+PRINT "DEX"
 END SUB
 
 SUB op.dey
 'DEY: Y-registret minskas med 1.
 reg.y = reg.y - 1
 IF reg.y = 0 THEN reg.s.z = 1      'Om noll s„tt z-flagen...
+IF reg.y = -1 THEN reg.y = 255     'Kanske n†t konstigt...
+PRINT "DEY"
 END SUB
 
 SUB op.inx
 'INX: X-registret ”kas med 1.
 reg.x = reg.x + 1
+IF reg.x = 256 THEN reg.x = 0    'Kanske overflow...
+PRINT "INX"
 END SUB
 
 SUB op.iny
 'INY: Y-registret ”kas med 1.
-reg.y = reg.y
+reg.y = reg.y + 1
+IF reg.y = 256 THEN reg.y = 0
+PRINT "INY"
+
 END SUB
 
 SUB op.lda (typ)
@@ -169,37 +210,31 @@ SUB op.lda (typ)
 
 SELECT CASE typ
    CASE 1                          'Direkt. En operand.
-      reg.pc = reg.pc + 1          'Bytepekaren ”kas med 1 (per operand).
-      GET #1, reg.pc, byte$        'Kr†ngel utan short int...
+      pc = pc + 1          'Bytepekaren ”kas med 1 (per operand).
+      GET #1, pc, byte$
       reg.a = ASC(byte$)
-
-   CASE 2                          'Zero Page. En operand.
-      reg.pc = reg.pc + 1
-      GET #1, reg.pc, byte$        'Plocka ut operanden
-      GET #2, ASC(byte$), byte$    'Plocka byte ur MEMORY.NIN
+      PRINT "LDA #$"; HEX$(ASC(byte$))
+   CASE 2 TO 3                     'Zero Page (x). En operand.
+      pc = pc + 1
+      GET #1, pc, byte$            'Plocka ut operanden
+      a = ASC(byte$)
+      IF typ = 3 THEN a = a + reg.x
+      GET #2, a, byte$             'Plocka byte ur MEMORY.NIN
       reg.a = ASC(byte$)           'L„gg den i Ackumulatorn
-
-   CASE 3                          'Zero Page X. En operand
-      reg.pc = reg.pc + 1
-      GET #1, reg.pc, byte$
-      GET #2, ASC(byte$) + reg.x, byte$   'Plocka ur minnet: operand+x
-      reg.a = ASC(byte$)
-
-   CASE 4                          'Absolut. Tv† operander.
-      reg.pc = reg.pc + 2
-      GET #1, reg.pc - 1, byte$: a = ASC(byte$)
-      GET #1, reg.pc, byte$: b = ASC(byte$)
+      IF typ = 2 THEN PRINT "LDA $"; HEX$(a)
+      IF typ = 3 THEN PRINT "LDA $"; HEX$(a - reg.x); ",X  =$"; HEX$(a)
+      
+  
+   CASE 4 TO 5                     'Absolut. Tv† operander.
+      pc = pc + 2
+      GET #1, pc - 1, byte$: a = ASC(byte$)
+      GET #1, pc, byte$: b = ASC(byte$)
       a = a + b * 256
+      IF typ = 5 THEN a = a + reg.x
       GET #2, a, byte$
       reg.a = ASC(byte$)
-
-   CASE 5                          'Absolut X. Tv† operander.
-      reg.pc = reg.pc + 2
-      GET #1, reg.pc - 1, byte$: a = ASC(byte$)
-      GET #1, reg.pc, byte$: b = ASC(byte$)
-      a = a + b * 256
-      GET #2, a + reg.x, byte$
-      reg.a = ASC(byte$)
+      IF typ = 4 THEN PRINT "LDA $"; HEX$(a)
+      IF typ = 5 THEN PRINT "LDA $"; HEX$(a - reg.x); ",X  =$"; HEX$(a)
 
 END SELECT
       
@@ -208,7 +243,29 @@ IF reg.a = 0 THEN reg.s.z = 1      'Z-flagen s„tts om Ackumulatorn „r 0.
 
 END SUB
 
-DEFINT R
+SUB op.ldx (typ)
+SELECT CASE typ
+   CASE 1                          'Direkt. En operand.
+      pc = pc + 1
+      GET #1, pc, byte$
+      reg.x = ASC(byte$)
+      PRINT "LDX #$"; HEX$(reg.x)
+
+   CASE 2, 3                       'Zero Page (Y)
+      pc = pc + 1
+      GET #1, pc, byte$
+      reg.x = ASC(byte$)
+      IF typ = 3 THEN reg.x = reg.x + reg.y
+      a = reg.x
+      GET #2, reg.x, byte$
+      reg.x = ASC(byte$)
+      IF typ = 2 THEN PRINT "LDX $"; HEX$(a)
+      IF typ = 3 THEN PRINT "LDX $"; HEX$(a - reg.y); ",X  ="; HEX$(a)
+
+END SELECT
+IF reg.x = 0 THEN reg.s.z = 1
+END SUB
+
 SUB op.lsr (typ)
 'LSR: Skifta h”ger (Dela med tv†).
 
@@ -217,6 +274,9 @@ SELECT CASE typ
       z = reg.a / 2                'skifta h”ger
       reg.a = z
       IF z AND .5 THEN reg.s.c = 1 'Om utanf”r s„tt carry
+      PRINT "LSR"
+END SELECT
+
 END SUB
 
 DEFINT A
@@ -224,21 +284,22 @@ SUB op.ora (typ)
 'ORA: ORa Ackumulatorn med operand/minne. Reultat i Ackumulatorn.
 SELECT CASE typ
    CASE 1
-      reg.pc = reg.pc + 1
-      GET #1, reg.pc, a            'Plocka operanden
-      reg.a = a OR reg.a           'ORa den med Ackumulatorn.
-
+      pc = pc + 1
+      GET #1, pc, byte$            'Plocka operanden
+      reg.a = reg.a OR ASC(byte$)  'ORa den med Ackumulatorn.
+      PRINT "ORA #$"; HEX$(a)
 END SELECT
 
 IF reg.a = 0 THEN reg.s.z = 1      'Om noll s„tts z-flagen...
 
 END SUB
 
-DEFSNG A, R
+DEFSNG A
 SUB op.pha
 'PHA: L„gg Ackumulatorn p† stacken...
 reg.sp = reg.sp - 1                'Minska stackpekaren med 1.
 PUT #3, reg.sp, reg.a              'Skriv dit Ackumulatorn.
+PRINT "PHA"
 END SUB
 
 SUB op.pla
@@ -248,70 +309,112 @@ reg.sp = reg.sp + 1                '™ka stackpekaren med 1.
 IF reg.a = 0 THEN reg.s.z = 1      'Om noll s„tt z-flagen.
 'OBS! Byten som l„ses in ligger fortfarande kvar i stacken.
 'Detta leder till h”gre hastighet, men kanske ocks† haveri. Troligtvis inte.
+PRINT "PLA"
 END SUB
 
-DEFINT R
+SUB op.rol (typ)
+'ROL: Rotera v„nster.
+SELECT CASE typ
+   CASE 1
+      reg.a = reg.a * 2
+      IF reg.a > 255 THEN reg.a = reg.a - 255': reg.s.c = 1  Vet ej...
+      'Om utanf”r: K”r runt med carry-flagen...
+      PRINT "ROL"
+END SELECT
+END SUB
+
+SUB op.ror (typ)
+SELECT CASE typ
+   CASE 1
+      z = reg.a / 2
+      reg.a = z
+      IF z AND .5 = .5 THEN reg.a = reg.a + 255': reg.s.c = 1 Vet ej...
+      'Om utanf”r: K”r runt med carry.
+      PRINT "ROR"
+END SELECT
+END SUB
+
 SUB op.sec
 'SEC: S„tt Carry-flagen.
 reg.s.c = 1
+PRINT "SEC"
 END SUB
 
 SUB op.sed
 'SED: S„tt Decimal mode-flagen.
 reg.s.d = 1
+PRINT "SED"
 END SUB
 
 SUB op.sei
 'SEI: I-flagen s„tts till 1.
 reg.s.i = 1
+PRINT "SEI"
 END SUB
 
-DEFINT A-B
-DEFSNG R
 SUB op.sta (typ)
 'STA: Stoppa Ackumulatorn i minnet.
 SELECT CASE typ
    CASE 1 TO 2                       'Zero Page (X). En operand.
-      reg.pc = reg.pc + 1
-      GET #1, reg.pc, byte$: a = ASC(byte$)'Put-kommandot var tjurigt mot asc
+      pc = pc + 1
+      GET #1, pc, byte$: a = ASC(byte$)'Put-kommandot var tjurigt mot asc
       IF typ = 2 THEN a = a + reg.x
       PUT #2, a, reg.a
+      PRINT "STA $"; HEX$(a); " (+$"; HEX$(reg.x); ")  =$"; HEX$(a)
 
    CASE 3 TO 5                       'Absoulut (X/Y). Tv† operander.
-      reg.pc = reg.pc + 2
-      GET #1, reg.pc, a
-      GET #1, reg.pc - 1, b
+      pc = pc + 2
+      GET #1, pc, a
+      GET #1, pc - 1, b
       a = a + 256 * b
       IF typ = 4 THEN a = a + reg.x
       IF typ = 5 THEN a = a + reg.y
       PUT #2, a, reg.a
-
+      PRINT "STA $"; HEX$(a); " (+$"; HEX$(reg.x); "/$"; HEX$(reg.y); ")  =$"; HEX$(a)
+END SELECT
 
 END SUB
 
-DEFSNG A-B
 SUB op.tax
 'TAX: Inneh†llet i Ackumulatorn f”rs ”ver till X-registret.
 reg.x = reg.a
 IF reg.x = 0 THEN reg.s.z = 1
-
+PRINT "TAX"
 END SUB
 
 SUB op.tay
 'TAY: Inneh†llet i Ackumulatorn f”rs ”ver till Y-regisret.
 reg.y = reg.a
 IF reg.y = 0 THEN reg.s.z = 1
+PRINT "TAY"
 END SUB
 
+DEFSNG R
 SUB op.tsx
 'TSX: Stack-pekarens inneh†ll f”rs ”ver till X-registret.
 reg.x = reg.sp
 IF reg.x = 0 THEN reg.s.z = 1
+PRINT "TSX"
 END SUB
 
+DEFINT R
 SUB op.txa
 'TXA: Inneh†llet i X-registret f”rs ”ver till Ackumulatorn.
 reg.a = reg.x
 IF reg.a = 0 THEN reg.s.z = 1
+PRINT "TXA"
+END SUB
+
+SUB utskrift
+PRINT "A:"; HEX$(reg.a); " X:"; HEX$(reg.x); " Y:"; HEX$(reg.y); " PC:"; HEX$(pc); " ";
+IF reg.s.z = 1 THEN PRINT "Z";
+IF reg.s.c = 1 THEN PRINT "C";
+IF reg.s.i = 1 THEN PRINT "I";
+IF reg.s.d = 1 THEN PRINT "D";
+IF reg.s.b = 1 THEN PRINT "B"
+PRINT
+SLEEP
+a$ = INKEY$
+
 END SUB
 
