@@ -1,3 +1,4 @@
+DECLARE SUB op.adc (typ!)
 DECLARE SUB op.bpl ()
 DECLARE SUB op.bmi ()
 DECLARE SUB op.jmp (typ!)
@@ -35,31 +36,31 @@ DECLARE SUB emulera ()
 DEFINT R
             
 'Status: SV1BDIZC
+' Alla register m†ste vara share-ade...
 DIM SHARED reg.a, reg.x, reg.y, reg.s, pc, reg.sp, fil$, byte$, opcode$
 
-'uNESsential Nintendo-emulator. Version 0.05
+'uNESsential Nintendo-emulator. Version 0.055
 '
 'Nyheter:
-' Fixat buggar bl a i STA...
-' Mycket b„ttre status-register.
-' B„ttre utskriftssystem...
-' BPL och BMI...
+' En ADC-opcode...
+' Fixat JMP-opcoden tror jag (l„gger till 1)...
+' L„ser NMI-vektorn... (men anv„nder den inte)...
 '
 'Minne emuleras genom filen MEMORY.NIN.
 'Stacken emuleras genom filen STACK.NIN.
 'Alla opcode-funktioner heter op_???(_?).
 'Register emuleras genom variabler.
-'Alla register-variabler heter reg.??. (undantag: pc)
+'Alla register-variabler heter reg.?. (undantag: pc, som inte f†r vara INT)
 
 'Variabler:
 'fil$ - Filnamn p† rommen som k”rs.
 'byte - variabel f”r h„mtning av en byte.
 
-' Alla register m†ste vara share-ade...
 
-'WARNING! Sharea inte "byte$". D† blir det haveri.
 
-'™vriga share-ade variabler...
+'WARNING! Sharea inte "byte$". D† blir det haveri. <---Snack!
+
+
 
 byte$ = CHR$(0)
 CLS
@@ -79,7 +80,7 @@ OPEN "MEMORY.NIN" FOR BINARY AS #2 'Minnet har filnummer #2. OBS Byte 1=0
 OPEN "STACK.NIN" FOR BINARY AS #3  'Stacken har filnummer #3.
 reg.s = 32                         'Status-bit 6=1
 pc = 17                            'Skippa 16-bytes-headern...
-reg.sp = 255                       'Stack-pekaren m†ste vara 255.
+reg.sp = 255 'Kanske 256...        'Stack-pekaren m†ste vara 255.
 header
 emulera                            'B”rja emulera!
 
@@ -145,7 +146,9 @@ SELECT CASE ASC(byte$)
    CASE &H30: op.bmi
 
    CASE &H4C: op.jmp (1)
-  
+ 
+   CASE &H69: op.adc (1)
+
    CASE ELSE: opcode$ = "Oimplementerad :("
 END SELECT
 utskrift
@@ -190,11 +193,35 @@ byte$ = " "
 GET #2, 65533, byte$
 a = ASC(byte$)
 GET #2, 65534, byte$
-B = ASC(byte$)
-pc = a + B * 256 + 1
-PRINT "Resettat till "; HEX$(pc); " /"; pc; "(+1)..."
+b = ASC(byte$)
+pc = a + b * 256 + 1
+PRINT "Resettat till "; HEX$(pc - 1); " /"; pc - 1; "(+1)..."
+GET #2, 65531, byte$
+a = ASC(byte$)
+GET #2, 65532, byte$
+b = ASC(byte$)
+a = a + b * 256
+PRINT "NMI-Position:"; HEX$(a); " /"; a; "(+1)..."
+
 
 byte$ = " "
+END SUB
+
+SUB op.adc (typ)
+'ADC: L„gg till operanden (adressen) till Ackumulatorn
+SELECT CASE typ
+   CASE 1
+      pc = pc + 1
+      GET #2, pc, byte$
+      a = ASC(byte$)
+      IF (reg.s AND 1) = 1 THEN a = a + 1
+      reg.a = reg.a + a
+      PRINT "ADC "; HEX$(ASC(byte$))
+END SELECT
+
+IF reg.a > 255 THEN reg.s = reg.s OR 1: reg.a = reg.a - 256: reg.s = reg.s OR 64
+IF reg.a = 0 THEN reg.s = reg.s OR 2
+
 END SUB
 
 SUB op.asl (typ)
@@ -337,7 +364,7 @@ SELECT CASE typ
       pc = pc + 2
       GET #2, pc, byte$: a = ASC(byte$)
       GET #2, pc - 1, byte$
-      pc = ASC(byte$) + a * 256
+      pc = ASC(byte$) + a * 256 + 1
       
       opcode$ = "JMP $" + HEX$(pc)
 END SELECT
@@ -366,8 +393,8 @@ SELECT CASE typ
    CASE 4 TO 5                     'Absolut. Tv† operander.
       pc = pc + 2
       GET #2, pc - 1, byte$: a = ASC(byte$)
-      GET #2, pc, byte$: B = ASC(byte$)
-      a = a + B * 256
+      GET #2, pc, byte$: b = ASC(byte$)
+      a = a + b * 256
       IF typ = 5 THEN a = a + reg.x
       GET #2, a + 1, byte$
       reg.a = ASC(byte$)
@@ -514,13 +541,13 @@ SELECT CASE typ
 
    CASE 3 TO 5                       'Absoulut (X/Y). Tv† operander.
       pc = pc + 2
-      GET #2, pc - 1, byte$: B = ASC(byte$)
+      GET #2, pc - 1, byte$: b = ASC(byte$)
       GET #2, pc, byte$: a = ASC(byte$)
-      a = a * 256 + B
+      a = a * 256 + b
       IF typ = 4 THEN a = a + reg.x
       IF typ = 5 THEN a = a + reg.y
       PUT #2, a + 1, reg.a
-      opcode$ = "STA $" + HEX$(ASC(byte$) * 256 + B) + " (+$" + HEX$(reg.x) + "/$" + HEX$(reg.y) + ")  =$" + HEX$(a)
+      opcode$ = "STA $" + HEX$(ASC(byte$) * 256 + b) + " (+$" + HEX$(reg.x) + "/$" + HEX$(reg.y) + ")  =$" + HEX$(a)
 END SELECT
 
 END SUB
