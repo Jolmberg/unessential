@@ -1,3 +1,6 @@
+DECLARE SUB crappygfxengine ()
+DECLARE SUB op.bcc ()
+DECLARE SUB patterntables ()
 DECLARE SUB op.rti ()
 DECLARE SUB op.dec (typ!)
 DECLARE SUB op.sty (typ!)
@@ -8,7 +11,7 @@ DECLARE SUB op.inc (typ!)
 DECLARE SUB op.ldy (typ!)
 DECLARE SUB op.cmp (typ!)
 DECLARE SUB op.rts ()
-DECLARE FUNCTION pop! ()
+DECLARE FUNCTION pop% ()
 DECLARE SUB op.jsr ()
 DECLARE SUB push (r%)
 DECLARE SUB moveup ()
@@ -59,16 +62,17 @@ SCREEN 12
 'Status: SV1BDIZC
 ' Alla register m†ste vara share-ade...
 loadfont       'Ladda in fonten...
-DIM SHARED reg.a, reg.x, reg.y, reg.s, pc, reg.sp, fil$, byte$, opcode$, cycles, nmi, ut, bokstav(52, 5), bytes
+DIM SHARED reg.a, reg.x, reg.y, reg.s, pc, reg.sp, fil$, byte$, opcode$, cycles, nmi, ut, bokstav(52, 5), bytes, rabies, vramposi
 
-'uNESsential Nintendo-emulator. Version 0.080
+'uNESsential Nintendo-emulator. Version 0.085
 '
 'Nyheter:
-' VBlank s„tter bit 78 i $2002 nu...
-' DEX och DEY fixade (hanterade flagarna fel...)
-' RTI.
-' Alla varianter av LDA och STA...
-' ADC lite b„ttre, men „nd† helt fel :)
+' V„rdel”s grafikmotor.
+' Register $2006 och $2007
+' VRAM emuleras.
+' Ritar upp Pattern Tablesar.
+' BCC(!?) Fattades tydligen.
+' NOP implementerad(!) :)
 '
 'Allm„n info:
 'VBlank-cycles-talet „r f”rmodligen fel.
@@ -105,11 +109,13 @@ CLS
 OPEN fil$ FOR BINARY AS #1         'Rommen har filnummer #1.
 OPEN "MEMORY.NIN" FOR BINARY AS #2 'Minnet har filnummer #2. OBS Byte 1=0
 OPEN "STACK.NIN" FOR BINARY AS #3  'Stacken har filnummer #3.
+OPEN "VRAM.NIN" FOR BINARY AS #4   'VRAM har filnummer #4.
 reg.s = 32                         'Status-bit 6=1
 pc = 17                            'Skippa 16-bytes-headern...
 reg.sp = 255 'Kanske 256...        'Stack-pekaren m†ste vara 255.
 header
 LINE (459, 407)-(639, 407), 8, , 21845
+patterntables
 emulera                            'B”rja emulera!
 
 FUNCTION anybyte% (posi)
@@ -117,29 +123,57 @@ GET #2, posi, byte$
 anybyte = ASC(byte$)
 END FUNCTION
 
+SUB crappygfxengine
+DIM tile(7, 7)
+'F”rmodligen den s„msta grafikmotor som n†gonsin skapats...
+bytes$ = STRING$(960, " ")
+GET #4, 8097, bytes$
+FOR c = 1 TO 960
+   a = 256 + (ASC(MID$(bytes$, c, 1)) AND 15)
+   b = 300 + (ASC(MID$(bytes$, c, 1)) AND 240) / 16
+   GET (a, b)-(a + 7, b + 7), tile
+   PUT (x, y), tile, PSET
+   x = x + 8
+   IF x = 256 THEN y = y + 8: x = 0
+NEXT c
+END SUB
+
 SUB cycle (r)
 cycles = cycles + r
+IF cycles >= 2599 THEN
+   cycles = 7
+   a% = anybyte(&H2003)             'fixa VBlank-biten...
+   a% = a% OR 128
+   putbyte a%, &H2003
+   vblank = 0
+END IF
 
+IF vblank = 0 THEN
 IF cycles >= 27007 THEN
-   BEEP: BEEP: BEEP: BEEP: BEEP: BEEP
-   cycles = 0
-   ut = 1
+   'BEEP: BEEP: BEEP: BEEP: BEEP: BEEP
+   vblank = 1
+   cycles = 7
+   'ut = 1
    'L„gg pc p† stacken.
    b% = (pc AND 65280) / 256
    a% = (pc AND 255)
    push b%
    push a%
-   push reg.s
+   push reg.s        'L„gg status p† stacken...
+   PRINT reg.s
    a% = anybyte(&H2003)
    a% = a% OR 128
    putbyte a%, &H2003
    'opcode$ = "vblank: hoppar till " + HEX$(nmi)
    pc = nmi
+   crappygfxengine    'Vederv„rdig grafikmotor som borde f”rbjudas!
+END IF
 END IF
 END SUB
 
 SUB emulera
 byte$ = " "
+'ut = 1
 DO
 GET #2, pc, byte$
 bytes = ASC(byte$)
@@ -221,6 +255,7 @@ SELECT CASE ASC(byte$)
    CASE &H10: op.bpl
    CASE &H30: op.bmi
    CASE &HB0: op.bcs
+   CASE &H90: op.bcc
 
    CASE &H4C: op.jmp (1)
    CASE &H6C: op.jmp (2)
@@ -235,6 +270,8 @@ SELECT CASE ASC(byte$)
 
    CASE &H40: op.rti
 
+   CASE &HEA: cycle 2
+  
    CASE ELSE: opcode$ = "Oimplementerad :(": PRINT HEX$(ASC(byte$)): SLEEP
 END SELECT
 IF ut = 1 THEN utskrift
@@ -304,8 +341,8 @@ SUB header
 'Inl„sning av headern f”r att kolla mappers och storlekar...
 'Just nu „r bara antaled prg-rom-bankar viktigt...
 bytes$ = STRING$(32767, CHR$(0))
-PUT #2, 1, bytes
-PUT #2, 32768, bytes
+PUT #2, 1, bytes$
+PUT #2, 32768, bytes$
 
 
 GET #1, 5, byte$
@@ -313,19 +350,27 @@ bytes$ = ""
 prgs = ASC(byte$)
 bytes$ = STRING$(16384, " ")
 IF prgs = 1 THEN
-   GET #1, 17, bytes              'Plocka ett prg-block.
-   PUT #2, 32769, bytes          'Stoppa det i b†de $8000
-   PUT #2, 49153, bytes          'och $C000.
+   GET #1, 17, bytes$             'Plocka ett prg-block.
+   PUT #2, 32769, bytes$          'Stoppa det i b†de $8000
+   PUT #2, 49153, bytes$          'och $C000.
+   bytes$ = STRING$(8192, " ")
+   GET #1, 32785, bytes$          'Plocka Pattern Tablesarna.
+   PUT #4, 1, bytes$              'Stoppa dem i VRAMen.
 ELSEIF prgs = 2 THEN
-   GET #1, 17, bytes$              'Plocka ett prg-block.
+   GET #1, 17, bytes$             'Plocka ett prg-block.
    PUT #2, 32769, bytes$          'Stoppa det i $8000
-   GET #1, 16401, bytes$           'Plocka ett till
+   GET #1, 16401, bytes$          'Plocka ett till
    PUT #2, 49153, bytes$          'och stoppa det i $C000.
-
+   bytes$ = STRING$(8192, " ")
+   GET #1, 32785, bytes$          'Plocka Pattern Tablesarna.
+   PUT #4, 1, bytes$              'Stoppa dem i VRAMen.
 ELSE
    PRINT "Inte mapper #0-rom!"
    END
 END IF
+
+a = getbyte
+
 
 'Reset vektor: FFFC (+1)
 'Kolla reset-position:
@@ -341,7 +386,7 @@ a = ASC(byte$)
 GET #2, 65532, byte$
 b = ASC(byte$)
 a = a + b * 256
-nmi = a + 1
+nmi = a
 PRINT "NMI-Position:"; HEX$(a); " /"; a; "(+1)..."
 
 
@@ -424,6 +469,18 @@ END SELECT
 
 reg.s = reg.s AND 253
 IF reg.a = 0 THEN reg.s = reg.s OR 2
+END SUB
+
+SUB op.bcc
+'BCC: Brancha om c=0...
+a = getbyte
+opcode$ = "BCC $" + HEX$(a)
+IF a > 127 THEN a = a - 256
+IF (reg.s AND 1) = 0 THEN pc = pc + a
+cycle 3                                'OBS! Konstig.
+
+
+
 END SUB
 
 SUB op.bcs
@@ -649,13 +706,13 @@ SELECT CASE typ
    CASE 1                          'Direkt. En operand.
       reg.a = getbyte
       opcode$ = "LDA #$" + HEX$(reg.a)
-      cycle 2
+      c = 2
    CASE 2 TO 3                     'Zero Page (x). En operand.
       a = getbyte
       IF typ = 3 THEN a = a + reg.x
       IF typ = 2 THEN opcode$ = "LDA $" + HEX$(a)
       IF typ = 3 THEN opcode$ = "LDA $" + HEX$(a - reg.x) + ",X"
-      cycle typ + 1
+      c = typ + 1
    CASE 4 TO 6                     'Absolut. Tv† operander.
       a = getbyte
       b = getbyte
@@ -663,7 +720,7 @@ SELECT CASE typ
       IF typ = 4 THEN opcode$ = "LDA $" + HEX$(a)
       IF typ = 5 THEN a = a + reg.x: opcode$ = "LDA $" + HEX$(a - reg.x) + ",X"
       IF typ = 6 THEN a = a + reg.y: opcode$ = "LDA $" + HEX$(a - reg.y) + ",Y"
-      cycle 4                                   'OBS! Konstig!
+      c = 4                                  'OBS! Konstig!
    CASE 7                          'Pre-indexed...
       c = getbyte
       a = c + reg.x
@@ -672,20 +729,20 @@ SELECT CASE typ
       a = anybyte(a + 2)
       a = b + a * 256
       opcode$ = "LDA ($" + HEX$(c) + ", X)"
-      cycle 6
+      c = 6
    CASE 8                          'Post-indexed...
       c = getbyte
       a = anybyte(c + 1)
       b = anybyte(c + 2)
       a = a + b * 256 + reg.y
       opcode$ = "LDA ($" + HEX$(c) + "), Y"
-      cycle 5                                   'OBS! Konstig...
+      c = 5                                  'OBS! Konstig...
 END SELECT
 IF typ > 1 THEN reg.a = anybyte(a + 1)     'Stoppa byte i ackumulatorn...
 reg.s = reg.s AND 125
 IF reg.a = 0 THEN reg.s = reg.s OR 2  'Z?
 IF reg.a > 127 THEN reg.s = reg.s OR 128'S?
-
+cycle c
 END SUB
 
 SUB op.ldx (typ)
@@ -817,7 +874,9 @@ END SUB
 
 SUB op.rti
 'RTI: Return from Interrupt
+PRINT "Just nu:"; reg.s
 reg.s = pop
+PRINT reg.s
 a = pop
 b = pop
 pc = a + b * 256
@@ -1004,10 +1063,43 @@ opcode$ = "TYA"
 cycle 2
 END SUB
 
-FUNCTION pop
-GET #3, reg.sp, byte$
-pop = ASC(byte$)
+SUB patterntables
+DIM linje(7)
+'Rita upp patterntablesarna som ligger i VRAMen...
+bytes$ = STRING$(8192, " ")
+GET #4, 1, bytes$
+a = 1
+FOR table = 0 TO 1
+   FOR ty = 0 TO 120 STEP 8
+      FOR tx = 0 TO 120 STEP 8
+         FOR y = 0 TO 7
+            FOR planes = 0 TO 1
+               IF (ASC(MID$(bytes$, a + planes * 8, 1)) AND 128) = 128 THEN linje(0) = linje(0) + planes + 1
+               IF (ASC(MID$(bytes$, a + planes * 8, 1)) AND 64) = 64 THEN linje(1) = linje(1) + planes + 1
+               IF (ASC(MID$(bytes$, a + planes * 8, 1)) AND 32) = 32 THEN linje(2) = linje(2) + planes + 1
+               IF (ASC(MID$(bytes$, a + planes * 8, 1)) AND 16) = 16 THEN linje(3) = linje(3) + planes + 1
+               IF (ASC(MID$(bytes$, a + planes * 8, 1)) AND 8) = 8 THEN linje(4) = linje(4) + planes + 1
+               IF (ASC(MID$(bytes$, a + planes * 8, 1)) AND 4) = 4 THEN linje(5) = linje(5) + planes + 1
+               IF (ASC(MID$(bytes$, a + planes * 8, 1)) AND 2) = 2 THEN linje(6) = linje(6) + planes + 1
+               IF (ASC(MID$(bytes$, a + planes * 8, 1)) AND 1) = 1 THEN linje(7) = linje(7) + planes + 1
+            NEXT planes
+            FOR b = 0 TO 7
+               PSET (table * 128 + tx + b, 300 + ty + y), linje(b)
+               linje(b) = 0
+            NEXT b
+            a = a + 1
+         NEXT y
+         a = a + 8
+      NEXT tx
+   NEXT ty
+NEXT table
+
+END SUB
+
+FUNCTION pop%
 reg.sp = reg.sp + 1
+GET #3, reg.sp, byte$
+pop% = ASC(byte$)
 END FUNCTION
 
 SUB push (r)
@@ -1019,6 +1111,28 @@ END SUB
 SUB putbyte (byte%, posi)
 byte$ = CHR$(byte%)
 PUT #2, posi, byte$
+
+'Kolla om n†gon speciell adress „r „ndrad.
+
+
+IF posi >= &H2000 THEN              'Mer „n $1FFF?
+   IF posi <= &H2007 THEN           'Mindre „n $2008?
+     
+      IF posi = &H2006 THEN         'Žndra adress f”r VRAM-l„sning/skrivning.
+         IF rabies = 1 THEN
+            vramposi = (vramposi + ASC(byte$)): rabies = 0
+         ELSE
+            PRINT ASC(byte$)
+            vramposi = ASC(byte$)         'Slintmeck pga slint-QBasic
+            vramposi = vramposi * 256
+            '''vramposi = (ASC(byte$) * 256): rabies = 1
+         END IF
+      END IF
+      IF posi = &H2007 THEN PUT #4, vramposi + 1, byte$: vramposi = vramposi + 1
+                        'Skriv till VRAM, och ”ka VRAM-"pointern".
+   END IF
+END IF
+
 END SUB
 
 SUB utskrift
