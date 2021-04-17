@@ -1,3 +1,11 @@
+DECLARE SUB op.sec ()
+DECLARE SUB op.sed ()
+DECLARE SUB op.cli ()
+DECLARE SUB op.clv ()
+DECLARE SUB op.clc ()
+DECLARE SUB op.cld ()
+DECLARE SUB op.sei ()
+DECLARE SUB op.ora (typ!)
 DECLARE SUB op.lsr (typ!)
 DECLARE SUB op.sta (typ!)
 DECLARE SUB op.pla ()
@@ -13,12 +21,11 @@ DECLARE SUB op.tax ()
 DECLARE SUB op.tay ()
 DECLARE SUB emulera ()
 DEFINT R
-'uNESsential Nintendo-emulator. Version 0.025
+'uNESsential Nintendo-emulator. Version 0.03
 '
 'Nyheter:
-' LSR p† Ackumulatorn...
-' Fler STA-varianter...
-' Stacken funkar nog...
+' Alla Set-och-Clear-opcoder...
+' ORA-opcoden. 1 variant
 '
 'Minne emuleras genom filen MEMORY.NIN.
 'Stacken emuleras genom filen STACK.NIN.
@@ -96,12 +103,45 @@ SELECT CASE ASC(byte$)
    CASE &H68: op.pla
 
    CASE &H4A: op.lsr (1)
+   CASE &H9:  op.ora (1)
+
+   CASE &H38: op.sec
+   CASE &HF8: op.sed
+   CASE &H78: op.sei
+   
+   CASE &H18: op.clc
+   CASE &HD8: op.cld
+   CASE &H58: op.cli
+   CASE &HB8: op.clv
+
 END SELECT
 reg.pc = reg.pc + 1
 LOOP
 
 END SUB
 
+DEFINT R
+SUB op.clc
+'CLC: Rensa carry-flagen...
+reg.s.c = 0
+END SUB
+
+SUB op.cld
+'CLD: Rensa Decimal-flagen.
+reg.s.d = 0
+END SUB
+
+SUB op.cli
+'CLI: Rensa Interrupt disable-flagen.
+reg.s.i = 0
+END SUB
+
+SUB op.clv
+'CLV: Rensa Owerflow-flagen.
+reg.s.v = 0
+END SUB
+
+DEFSNG R
 SUB op.dex
 'DEX: X-registret minskas med 1.
 reg.x = reg.x - 1
@@ -170,6 +210,8 @@ END SUB
 
 DEFINT R
 SUB op.lsr (typ)
+'LSR: Skifta h”ger (Dela med tv†).
+
 SELECT CASE typ
    CASE 1                          'Ackumulatorn...
       z = reg.a / 2                'skifta h”ger
@@ -177,7 +219,22 @@ SELECT CASE typ
       IF z AND .5 THEN reg.s.c = 1 'Om utanf”r s„tt carry
 END SUB
 
-DEFSNG R
+DEFINT A
+SUB op.ora (typ)
+'ORA: ORa Ackumulatorn med operand/minne. Reultat i Ackumulatorn.
+SELECT CASE typ
+   CASE 1
+      reg.pc = reg.pc + 1
+      GET #1, reg.pc, a            'Plocka operanden
+      reg.a = a OR reg.a           'ORa den med Ackumulatorn.
+
+END SELECT
+
+IF reg.a = 0 THEN reg.s.z = 1      'Om noll s„tts z-flagen...
+
+END SUB
+
+DEFSNG A, R
 SUB op.pha
 'PHA: L„gg Ackumulatorn p† stacken...
 reg.sp = reg.sp - 1                'Minska stackpekaren med 1.
@@ -193,16 +250,34 @@ IF reg.a = 0 THEN reg.s.z = 1      'Om noll s„tt z-flagen.
 'Detta leder till h”gre hastighet, men kanske ocks† haveri. Troligtvis inte.
 END SUB
 
+DEFINT R
+SUB op.sec
+'SEC: S„tt Carry-flagen.
+reg.s.c = 1
+END SUB
+
+SUB op.sed
+'SED: S„tt Decimal mode-flagen.
+reg.s.d = 1
+END SUB
+
+SUB op.sei
+'SEI: I-flagen s„tts till 1.
+reg.s.i = 1
+END SUB
+
 DEFINT A-B
+DEFSNG R
 SUB op.sta (typ)
+'STA: Stoppa Ackumulatorn i minnet.
 SELECT CASE typ
-   CASE 1 TO 2                       'Zero Page. En operand.
+   CASE 1 TO 2                       'Zero Page (X). En operand.
       reg.pc = reg.pc + 1
       GET #1, reg.pc, byte$: a = ASC(byte$)'Put-kommandot var tjurigt mot asc
       IF typ = 2 THEN a = a + reg.x
       PUT #2, a, reg.a
 
-   CASE 3 TO 5
+   CASE 3 TO 5                       'Absoulut (X/Y). Tv† operander.
       reg.pc = reg.pc + 2
       GET #1, reg.pc, a
       GET #1, reg.pc - 1, b
@@ -218,20 +293,25 @@ DEFSNG A-B
 SUB op.tax
 'TAX: Inneh†llet i Ackumulatorn f”rs ”ver till X-registret.
 reg.x = reg.a
+IF reg.x = 0 THEN reg.s.z = 1
+
 END SUB
 
 SUB op.tay
 'TAY: Inneh†llet i Ackumulatorn f”rs ”ver till Y-regisret.
 reg.y = reg.a
+IF reg.y = 0 THEN reg.s.z = 1
 END SUB
 
 SUB op.tsx
 'TSX: Stack-pekarens inneh†ll f”rs ”ver till X-registret.
 reg.x = reg.sp
+IF reg.x = 0 THEN reg.s.z = 1
 END SUB
 
 SUB op.txa
 'TXA: Inneh†llet i X-registret f”rs ”ver till Ackumulatorn.
 reg.a = reg.x
+IF reg.a = 0 THEN reg.s.z = 1
 END SUB
 
