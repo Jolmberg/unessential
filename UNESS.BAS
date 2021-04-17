@@ -71,24 +71,18 @@ SCREEN 12
 loadfont       'Ladda in fonten...
 DIM SHARED reg.a, reg.x, reg.y, reg.s, pc, reg.sp, fil$, byte$, opcode$, cycles, nmi, ut, bokstav(52, 5), bytes, rabies, vramposi, vblank, ppu1, brk
 
-'uNESsential Nintendo-emulator. Version 0.1
+'uNESsential Nintendo-emulator. Version 0.105
 '
 'Nyheter:
-' Nmi kan disableas.
-' Vram-adress-”kning funkar.
-' BRK emuleras som implied... Helt trasig...
-' PPUkontrolregister 1 emuleras till stor del.
-' Pattern Tables l„ses r„tt „ven i 24kb-rommar. :)
-' VRAM-skrivning funkar ordentligt nu.
-' De tv† sista INCarna.
-' Zero Page ROLarna. -Nu 101 opcodes emulerade.
-' Version 0.1 kommer inte f”rr„n n†gon annan tile „n $0 visas...
-'
+' Idiot-bugg i LDY fixad. Wrappade helt fel :)
+' Man kan l„sa fr†n videominnet.
+' Stacken emuleras r„tt.
+' Zero Page-ADCarna implementerade.
+' ADC „r f”r„ndrad. Kanske f”rb„ttrad.
 '
 'Allm„n info:
 'RAM-minne emuleras genom filen MEMORY.NIN.
-'VRAM emuleras inte „n.
-'Stacken emuleras genom filen STACK.NIN.
+'VRAM emuleras genom VRAM.NIN
 'Alla opcode-funktioner heter op.???(?).
 'Register emuleras genom variabler.
 'Alla register-variabler heter reg.?. (undantag: pc, som inte f†r vara INT)
@@ -96,7 +90,6 @@ DIM SHARED reg.a, reg.x, reg.y, reg.s, pc, reg.sp, fil$, byte$, opcode$, cycles,
 'Variabler:
 'fil$ - Filnamn p† rommen som k”rs.
 'byte$ - variabel f”r h„mtning av en byte.
-
 
 
 'WARNING! Sharea inte "byte$". D† blir det haveri. <---Snack! Tv„rtom!
@@ -114,11 +107,10 @@ INPUT "Load ROM:", fil$
 CLS
 'LINE (0, 0)-(256, 224), 8, B
 
-'ppu1 = 16
+'ppu1 = 128                         'Nmi ska vara p†.
 'F”rberedelser...
 OPEN fil$ FOR BINARY AS #1         'Rommen har filnummer #1.
 OPEN "MEMORY.NIN" FOR BINARY AS #2 'Minnet har filnummer #2. OBS Byte 1=0
-OPEN "STACK.NIN" FOR BINARY AS #3  'Stacken har filnummer #3.
 OPEN "VRAM.NIN" FOR BINARY AS #4   'VRAM har filnummer #4.
 reg.s = 32                         'Status-bit 6=1
 pc = 17                            'Skippa 16-bytes-headern...
@@ -132,7 +124,7 @@ FUNCTION anybyte% (posi)
 GET #2, posi, byte$
 anybyte = ASC(byte$)
 
-IF posi = &H2008 THEN LOCATE 10, 40: PRINT pc
+IF posi = &H2008 THEN GET #4, vramposi + 1, anybyte%
 
 END FUNCTION
 
@@ -182,7 +174,7 @@ IF cycles >= 27007 THEN
    IF (ppu1 AND 128) = 128 THEN
       BEEP: BEEP: BEEP: BEEP: BEEP: BEEP
       cycles = 7
-      ut = 1
+      'ut = 1
       'L„gg pc p† stacken.
       b% = (pc AND 65280) / 256
       a% = (pc AND 255)
@@ -339,6 +331,8 @@ SELECT CASE ASC(byte$)
    CASE &H2C: op.bit (2)
 
    CASE &H69: op.adc (1)
+   CASE &H65: op.adc (2)
+   CASE &H75: op.adc (3)
 
    CASE &H0: op.brk
   
@@ -347,10 +341,11 @@ SELECT CASE ASC(byte$)
    CASE &HEA: cycle 2
   
    CASE ELSE: opcode$ = "Oimplementerad :(": PRINT HEX$(ASC(byte$)): PRINT HEX$(pc - 1): SLEEP
-END SELECT
+ END SELECT
 SELECT CASE INKEY$
    CASE "u": ut = 1
    CASE "a": ut = 0
+   CASE "q": END
 END SELECT
 IF ut = 1 THEN utskrift
 'PRINT "Cycles:"; cycles
@@ -510,17 +505,28 @@ SUB op.adc (typ)
 'Den h„r „r n„stan helt s„kert fel-emulerad...
 SELECT CASE typ
    CASE 1               'Direkt. En operand.
-      a = getbyte
-      IF (reg.s AND 1) = 1 THEN a = a + 1
-      reg.a = reg.a + a
+      a = getbyte + (reg.s AND 1)
       opcode$ = "ADC #$" + HEX$(a)
-      cycle 2
+      cy = 2
+   CASE 2 TO 3
+      a = getbyte
+      opcode$ = "ADC $" + HEX$(a)
+      IF typ = 3 THEN
+         a = a + reg.x
+         IF a > 255 THEN a = a - 256
+         opcode$ = opcode$ + ", X"
+      END IF
+      a = anybyte(a + 1)
+      cy = 2
 END SELECT
-reg.s = reg.s AND 125
-IF reg.a > 255 THEN reg.s = reg.s OR 1: reg.a = reg.a - 256: reg.s = reg.s OR 64 'Hmmm...
-IF reg.a = 0 THEN reg.s = reg.s OR 2
-IF reg.a > 127 THEN reg.s = reg.s OR 128
-
+IF (a AND 128) THEN a = a - 256
+reg.a = reg.a + a
+reg.s = reg.s AND 60
+IF (reg.a > 255) OR (reg.a) < 0 THEN reg.s = reg.s OR 64    'V?
+IF reg.a > 255 THEN reg.a = reg.a - 256: reg.s = reg.s OR 1 'C?
+IF reg.a = 0 THEN reg.s = reg.s OR 2                        'Z?
+IF reg.a < 0 THEN reg.a = reg.a + 256: reg.s = reg.s OR 128 'S?
+cycle cy
 END SUB
 
 SUB op.and (typ)
@@ -719,7 +725,7 @@ SELECT CASE typ
       r = anybyte(a + 1)
       cy = 4                        '5:ans „r konstig...
 END SELECT
-IF r = reg.a THEN reg.s = reg.s OR 3: EXIT SUB
+IF r = reg.a THEN reg.s = reg.s OR 3: cycle cy: EXIT SUB
 IF reg.a - r < 0 THEN
    reg.s = reg.s AND 254
    IF 255 + (reg.a - r) > 127 THEN
@@ -903,8 +909,9 @@ SUB op.inx
 reg.x = reg.x + 1
 IF reg.x = 256 THEN reg.x = 0    'Kanske overflow...
 
-reg.s = reg.s AND 253
+reg.s = reg.s AND 125
 IF reg.x = 0 THEN reg.s = reg.s OR 2
+IF reg.x > 127 THEN reg.s = reg.s OR 128
 
 opcode$ = "INX"
 cycle 2
@@ -915,8 +922,9 @@ SUB op.iny
 reg.y = reg.y + 1
 IF reg.y = 256 THEN reg.y = 0
 
-reg.s = reg.s AND 253
+reg.s = reg.s AND 125
 IF reg.y = 0 THEN reg.s = reg.s OR 2
+IF reg.y > 127 THEN reg. = reg.s OR 128
 
 opcode$ = "INY"
 cycle 2
@@ -949,6 +957,7 @@ SUB op.jsr
 'JSR: L„gg pc p† stacken och hoppa.
 a = getbyte
 b = getbyte
+pc = pc - 1
 push ((pc AND 65280) / 256)
 push (pc AND 255)
 pc = a + b * 256
@@ -1069,11 +1078,11 @@ SELECT CASE typ
       a = getbyte
       b = getbyte
       a = a + b * 256
-      opcode$ = "LDX $" + HEX$(a)
+      opcode$ = "LDY $" + HEX$(a)
       IF typ = 5 THEN
          a = a + reg.x
          opcode$ = opcode$ + ", X"
-         IF a > 255 THEN a = a - 256
+         IF a > 65535 THEN a = a - 65536
       END IF
       reg.y = anybyte(a + 1)
       cycle 4                             'OBS 5:an „r konstig.
@@ -1286,7 +1295,7 @@ SUB op.rts
 'RTS: L„s pc fr†n stacken.
 a = pop              'F”rst den l†ga byten
 b = pop              'Sedan den h”ga :)
-pc = a + b * 256
+pc = a + b * 256 + 1
 opcode$ = "RTS"
 cycle 6
 END SUB
@@ -1502,19 +1511,22 @@ END SUB
 
 FUNCTION pop%
 reg.sp = reg.sp + 1
-GET #3, reg.sp, byte$
+GET #2, 257 + reg.sp, byte$
 pop% = ASC(byte$)
 END FUNCTION
 
 SUB push (r)
 byte$ = CHR$(r)
-PUT #3, reg.sp, byte$
+PUT #2, 257 + reg.sp, byte$
 reg.sp = reg.sp - 1
 END SUB
 
 SUB putbyte (byte%, posi)
 byte$ = CHR$(byte%)
 PUT #2, posi, byte$
+PUT #2, posi + &H800, byte$
+PUT #2, posi + &H1000, byte$
+PUT #2, posi + &H1800, byte$
 
 'Kolla om n†gon speciell adress „r „ndrad.
 
