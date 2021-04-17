@@ -1,0 +1,169 @@
+€ﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂ€≤±∞
+€  uNESsential           €≤±∞     ∞±≤€ﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂ€≤±∞
+€                        €≤±∞     ∞±≤€  Notepad sucks! Use Edit! €≤±∞
+€  By Johannes Holmberg  €≤±∞     ∞±≤€‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹€≤±∞
+€‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹€≤±∞
+
+€ﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂ€≤±∞
+€  Contents               €≤±∞
+€  1........Introduction  €≤±∞
+€  2........What's new    €≤±∞
+€  3........Instructions  €≤±∞
+€  4........Requirements  €≤±∞
+€  5........Emulation     €≤±∞
+€  6........Misc Stuff    €≤±∞
+€  7........Credits       €≤±∞
+€  8........Disclaimer    €≤±∞
+€  9........More stuff    €≤±∞
+€  10.......History       €≤±∞
+€‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹€≤±∞
+
+€ﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂ€≤±∞
+€  1. Introduction                                                  €≤±∞
+€                                                                   €≤±∞
+€  uNESsential is a NES emulator.                                   €≤±∞
+€  I know exactly what you are thinking:                            €≤±∞
+€  "Not another one!"                                               €≤±∞
+€  Sorry, but you'll just have to live with it.                     €≤±∞
+€  uNESsential however, has little in common with other emulators.  €≤±∞
+€  uNESsential is the worst NES emulator ever made!                 €≤±∞
+€  It is slow, ugly, quiet and the compatibility level is           €≤±∞
+€  lower than you ever imagined possible!                           €≤±∞
+€  "So why didn't you make a better emulator?", you're asking.      €≤±∞
+€  Coding a good emulator is hard. And it becomes even harder when  €≤±∞
+€  you're doing it in QBasic.                                       €≤±∞
+€‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹€≤±∞
+
+€ﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂ€≤±∞
+€  2. What's new   €≤±∞
+€                  €≤±∞
+€  Version 0.12    €≤±∞
+€  Everything is!  €≤±∞
+€‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹€≤±∞
+
+€ﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂ€≤±∞
+€  3. Instructions                                                    €≤±∞
+€                                                                     €≤±∞
+€  How to use it:                                                     €≤±∞
+€  Run the uness.exe file, and type in a filename, preferrably        €≤±∞
+€  one of a NES ROM, and the emulator will do its best to run it.     €≤±∞
+€                                                                     €≤±∞
+€  Joypad Keys:                                                       €≤±∞
+€  Arrows - Directional pad                                           €≤±∞
+€  Z      - A                                                         €≤±∞
+€  X      - B                                                         €≤±∞
+€  C      - Select                                                    €≤±∞
+€  V      - Start                                                     €≤±∞
+€                                                                     €≤±∞
+€  Other Keys:                                                        €≤±∞
+€                                                                     €≤±∞
+€  Q      - Quit                                                      €≤±∞
+€  O      - Toggle opcode output                                      €≤±∞
+€  P      - Toggle opcode output                                      €≤±∞
+€                                                                     €≤±∞
+€  Joypad emulation works on a toggle basis. Don't keep the physical  €≤±∞
+€  keys pressed, or you will go deaf.                                 €≤±∞
+€‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹€≤±∞
+
+€ﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂ€≤±∞
+€  4. Requirements                                            €≤±∞
+€                                                             €≤±∞
+€  I'm not sure about system requirements really, but here's  €≤±∞
+€  what I think should be sufficient:                         €≤±∞
+€                                                             €≤±∞
+€  A PC capable of VGA graphics.                              €≤±∞
+€  About 100kb of hard drive space for swap files.            €≤±∞
+€  A few kilobytes of conventional memory.                    €≤±∞
+€                                                             €≤±∞
+€  A Pentium II is highly recommended                         €≤±∞
+€                                                             €≤±∞
+€  To play games at full speed (60 fps) you will need a       €≤±∞
+€  processor of at least 100Ghz.                              €≤±∞
+€‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹€≤±∞
+
+€ﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂ€≤±∞
+€  5. Emulation                                                  €≤±∞
+€                                                                €≤±∞
+€  What it emulates:                                             €≤±∞
+€  - Most of the 6502 opcodes                                    €≤±∞
+€  - Sprites and backgrounds                                     €≤±∞
+€  - Joypad 1                                                    €≤±∞
+€                                                                €≤±∞
+€  What it will emulate in the future:                           €≤±∞
+€  - All 6502 opcodes                                            €≤±∞
+€  - Sprite and background attributes                            €≤±∞
+€  - Scrolling                                                   €≤±∞
+€  - Joypad 2 (Possibly 3 and 4 too)                             €≤±∞
+€  - Palettes                                                    €≤±∞
+€  - Sound (only if I manage to speed up emulation remarkably).  €≤±∞
+€  - Some more mappers.                                          €≤±∞
+€‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹€≤±∞
+
+€ﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂ€≤±∞
+€  6. Misc.                                                     €≤±∞
+€                                                               €≤±∞
+€  Other things you should know:                                €≤±∞
+€  If you are planning on writing your own NES emulator,        €≤±∞
+€  I can not recommend you to rely on the opcode output         €≤±∞
+€  of uNESsential. Many opcodes are probably buggy.             €≤±∞
+€                                                               €≤±∞
+€  Timing is probably way off. I suspect this causes a lot      €≤±∞
+€  of malfunctioning.                                           €≤±∞
+€                                                               €≤±∞
+€  uNESsential does not have a line by line graphics engine,    €≤±∞
+€  and it probably never will have, since that almost requires  €≤±∞
+€  double buffering or page flipping, which is impossible at    €≤±∞
+€  decent speed in QBasic (In VGA).                             €≤±∞
+€                                                               €≤±∞
+€  Compatibility list:                                          €≤±∞
+€  These commercial games work a little bit:                    €≤±∞
+€  (The title screen shows up)                                  €≤±∞
+€  Lode Runner, Thexder, Golf, Joust, Space Invaders.           €≤±∞
+€  I probably forgot some too.                                  €≤±∞
+€  A lot of roms do strange things.                             €≤±∞
+€  Junkrom and Mouser seem to work perfectly.                   €≤±∞
+€  Some of Chris Covells programs work.                         €≤±∞
+€                                                               €≤±∞
+€  Why uNESs? The extra 's' is because I don't want people to   €≤±∞
+€  confuse uNESsential with another emulator called             €≤±∞
+€  Ultimate NES (uNES).                                         €≤±∞
+€‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹€≤±∞
+
+€ﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂ€≤±∞
+€  7. Credits                                                  €≤±∞
+€                                                              €≤±∞
+€  Thanks to the following people:                             €≤±∞
+€                                                              €≤±∞
+€  - Yoshi and Marat Fayzullin for their invaluable NES docs.  €≤±∞
+€  - Loopy for making LoopyNES which has helped incredibly.    €≤±∞
+€  - Goroh for taking the time to answer my sprite questions.  €≤±∞
+€  - Tony Young for creating Junkrom and Mouser.               €≤±∞
+€  - Chris Covell for making his various NES ROMs.             €≤±∞
+€  - _Bnu for getting me started when I knew nothing.          €≤±∞
+€  - AtLaS for thinking of the name uNESsential.               €≤±∞
+€  - Everyone on the Nesdev list.                              €≤±∞
+€  - Probably some more people. Mail me if I forgot you.       €≤±∞
+€‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹€≤±∞
+
+€ﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂ€≤±∞
+€  8. Disclaimer                                                     €≤±∞
+€                                                                    €≤±∞
+€  Who cares anyway? Let me just say one thing: "It's not my fault!" €≤±∞
+€‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹€≤±∞
+
+€ﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂ€≤±∞
+€  9. More stuff                                           €≤±∞
+€                                                          €≤±∞
+€  Feel free to mail me at bapple@home.se.                 €≤±∞
+€  The latest version of uNESsential can be downloaded at: €≤±∞
+€  http://www.emucamp.com/unessential/                     €≤±∞
+€  Copyright - Johannes Holmberg 1998                      €≤±∞
+€‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹€≤±∞
+
+€ﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂﬂ€≤±∞
+€  10. History       €≤±∞
+€                    €≤±∞
+€  Version 0.12      €≤±∞
+€  Initial release.  €≤±∞
+€‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹‹€≤±∞
+
