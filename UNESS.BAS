@@ -1,3 +1,8 @@
+DECLARE SUB loadfont ()
+DECLARE FUNCTION anybyte! (posi!)
+DECLARE SUB putbyte (byte%, posi!)
+DECLARE FUNCTION getbyte! ()
+DECLARE SUB hagla (x, y, text$)
 DECLARE SUB op.tya ()
 DECLARE SUB cycle (r%)
 DECLARE SUB op.adc (typ!)
@@ -36,17 +41,17 @@ DECLARE SUB op.tax ()
 DECLARE SUB op.tay ()
 DECLARE SUB emulera ()
 DEFINT C, R
-            
+SCREEN 12
 'Status: SV1BDIZC
 ' Alla register m†ste vara share-ade...
-DIM SHARED reg.a, reg.x, reg.y, reg.s, pc, reg.sp, fil$, byte$, opcode$, cycles, nmi, ut
+loadfont       'Ladda in fonten...
+DIM SHARED reg.a, reg.x, reg.y, reg.s, pc, reg.sp, fil$, byte$, opcode$, cycles, nmi, ut, bokstav(52, 5)
 
-'uNESsential Nintendo-emulator. Version 0.06
+'uNESsential Nintendo-emulator. Version 0.065
 '
 'Nyheter:
-' Opcode TYA...
-' Indirekt JMP...
-' Cycle-r„knare...
+' Nytt, b„ttre system.
+' Ny font.
 '
 'Minne emuleras genom filen MEMORY.NIN.
 'Stacken emuleras genom filen STACK.NIN.
@@ -60,7 +65,7 @@ DIM SHARED reg.a, reg.x, reg.y, reg.s, pc, reg.sp, fil$, byte$, opcode$, cycles,
 
 
 
-'WARNING! Sharea inte "byte$". D† blir det haveri. <---Snack!
+'WARNING! Sharea inte "byte$". D† blir det haveri. <---Snack! Tv„rtom!
 
 
 
@@ -86,6 +91,11 @@ reg.sp = 255 'Kanske 256...        'Stack-pekaren m†ste vara 255.
 header
 emulera                            'B”rja emulera!
 
+FUNCTION anybyte (posi)
+GET #2, posi, byte$
+anybyte = ASC(byte$)
+END FUNCTION
+
 SUB cycle (r)
 cycles = cycles + r
 
@@ -105,7 +115,7 @@ IF cycles >= 29830 THEN
    byte$ = CHR$(pc)
    PUT #3, reg.sp, byte$
    reg.sp = reg.sp - 1
-   opcode$ = "VBlank: Hoppar till " + HEX$(nmi)
+   opcode$ = "vblank: hoppar till " + HEX$(nmi)
    pc = nmi
 END IF
 END SUB
@@ -188,6 +198,60 @@ LOOP
 
 END SUB
 
+FUNCTION getbyte
+pc = pc + 1
+GET #2, pc, byte$
+getbyte = ASC(byte$)
+END FUNCTION
+
+SUB hagla (x, y, text$)
+FOR o = 1 TO LEN(text$)
+   IF ASC(MID$(text$, o, 1)) > 96 AND ASC(MID$(text$, o, 1)) < 123 THEN
+      hus = ASC(MID$(text$, o, 1)) - 97
+      GOTO rita
+   END IF
+   IF ASC(MID$(text$, o, 1)) > 48 AND ASC(MID$(text$, o, 1)) < 58 THEN
+      hus = ASC(MID$(text$, o, 1)) - 20
+      GOTO rita
+   END IF
+   SELECT CASE MID$(text$, o, 1)   'Bara 18 CASEar! Fjantigt! :)
+      CASE "†": hus = 26
+      CASE "„": hus = 27
+      CASE "”": hus = 28
+      CASE "0": hus = 38
+      CASE "(": hus = 39
+      CASE ")": hus = 40
+      CASE "$": hus = 41
+      CASE ",": hus = 42
+      CASE "+": hus = 43
+      CASE "-": hus = 44
+      CASE "*": hus = 45
+      CASE "/": hus = 46
+      CASE "=": hus = 47
+      CASE ":": hus = 48
+      CASE ".": hus = 49
+      CASE "!": hus = 50
+      CASE "?": hus = 51
+      CASE "#": hus = 52
+      CASE " ": x = x + 2: GOTO mellanmjoelk
+   END SELECT
+rita:
+   FOR h = 0 TO 5
+      IF bokstav(hus, h) = 0 THEN x = x + 1: EXIT FOR
+      IF (bokstav(hus, h) AND 1) THEN PSET (x, y)
+      IF (bokstav(hus, h) AND 2) THEN PSET (x, y + 1)
+      IF (bokstav(hus, h) AND 4) THEN PSET (x, y + 2)
+      IF (bokstav(hus, h) AND 8) THEN PSET (x, y + 3)
+      IF (bokstav(hus, h) AND 16) THEN PSET (x, y + 4)
+      IF (bokstav(hus, h) AND 32) THEN PSET (x, y + 5)
+      IF (bokstav(hus, h) AND 64) THEN PSET (x, y + 6)
+      x = x + 1
+   NEXT h
+mellanmjoelk:
+NEXT o
+
+END SUB
+
 SUB header
 'Inl„sning av headern f”r att kolla mappers och storlekar...
 'Just nu „r bara antaled prg-rom-bankar viktigt...
@@ -237,13 +301,28 @@ PRINT "NMI-Position:"; HEX$(a); " /"; a; "(+1)..."
 byte$ = " "
 END SUB
 
+DEFSNG C, R
+SUB loadfont
+OPEN "°±²ÛÛ²±°.ÜÛß" FOR BINARY AS #7
+byte$ = " "
+hus = -1
+10 hus = hus + 1: del = -1
+11 del = del + 1
+GET #7, , byte$
+bokstav(hus, del) = ASC(byte$)
+IF ASC(byte$) = 0 THEN del = 0: GOTO 10
+IF ASC(byte$) = 255 THEN bokstav(hus, del) = 0: GOTO 12
+GOTO 11
+12 CLOSE #7
+
+END SUB
+
+DEFINT C, R
 SUB op.adc (typ)
 'ADC: L„gg till operanden (adressen) till Ackumulatorn
 SELECT CASE typ
-   CASE 1
-      pc = pc + 1
-      GET #2, pc, byte$
-      a = ASC(byte$)
+   CASE 1               'Direkt. En operand.
+      a = getbyte
       IF (reg.s AND 1) = 1 THEN a = a + 1
       reg.a = reg.a + a
       PRINT "ADC "; HEX$(ASC(byte$))
@@ -275,9 +354,7 @@ END SUB
 SUB op.beq
 'BEQ: Brancha om Z=1
 IF (reg.s OR 2) = 2 THEN
-   pc = pc + 1
-   GET #2, pc, byte$
-   a = ASC(byte$)
+   a = getbyte
    IF a > 127 THEN a = a - 256
    pc = pc + a
   END IF
@@ -288,9 +365,7 @@ END SUB
 SUB op.bmi
 'BMI: Brancha om s=1
 IF (reg.s OR 128) = 128 THEN
-   pc = pc + 1
-   GET #2, pc, byte$
-   a = ASC(byte$)
+   a = getbyte
    IF a > 127 THEN a = a - 256
    pc = pc + a
   END IF
@@ -299,11 +374,9 @@ cycle 3                                   'OBS!
 END SUB
 
 SUB op.bne
-'BEQ: Brancha om Z=0
+'BNE: Brancha om Z=0
 IF (reg.s AND 2) = 0 THEN
-   pc = pc + 1
-   GET #2, pc, byte$
-   a = ASC(byte$)
+   a = getbyte
    IF a > 127 THEN a = a - 256
    pc = pc + a
 END IF
@@ -314,9 +387,7 @@ END SUB
 SUB op.bpl
 'BPL: Brancha om s=0
 IF (reg.s AND 128) = 0 THEN
-   pc = pc + 1
-   GET #2, pc, byte$
-   a = ASC(byte$)
+   a = getbyte
    IF a > 127 THEN a = a - 256
    pc = pc + a
   END IF
@@ -397,23 +468,21 @@ cycle 2
 END SUB
 
 SUB op.jmp (typ)
-'JMP: Hoppa till by position...
+'JMP: Hoppa till ny position...
 SELECT CASE typ
    CASE 1                          'Direkt. Tv† operander.
-      pc = pc + 2
-      GET #2, pc, byte$: a = ASC(byte$)
-      GET #2, pc - 1, byte$
-      pc = ASC(byte$) + a * 256 + 1
+      b = getbyte
+      a = getbyte
+      pc = b + a * 256 + 1
       opcode$ = "JMP $" + HEX$(pc)
       cycle 3
-
 CASE 2                             'Indirekt. Tv† operander.
-      pc = pc + 2
-      GET #2, pc, byte$: a = ASC(byte$)
-      GET #2, pc - 1, byte$
-      GET #2, ASC(byte$) + a * 256 + 1, byte$: b = ASC(byte$)
-      GET #2, ASC(byte$) + a * 256 + 1, byte$
-      pc = ASC(byte$) * 256 + b + 1
+      b = getbyte
+      a = gtebyte
+      b = b + a * 256
+      a = anybyte(b)
+      b = anybyte(b + 1)
+      pc = a + b * 256 + 1
       opcode$ = "JMP ($" + HEX$(pc) + ")"
       cycle 5
 END SELECT
@@ -424,30 +493,23 @@ SUB op.lda (typ)
 
 SELECT CASE typ
    CASE 1                          'Direkt. En operand.
-      pc = pc + 1          'Bytepekaren ”kas med 1 (per operand).
-      GET #2, pc, byte$
-      reg.a = ASC(byte$)
+      reg.a = getbyte
       opcode$ = "LDA #$" + HEX$(ASC(byte$))
       cycle 2
    CASE 2 TO 3                     'Zero Page (x). En operand.
-      pc = pc + 1
-      GET #2, pc, byte$            'Plocka ut operanden
-      a = ASC(byte$)
+      a = getbyte
       IF typ = 3 THEN a = a + reg.x
-      GET #2, a + 1, byte$         'Plocka byte ur MEMORY.NIN
-      reg.a = ASC(byte$)           'L„gg den i Ackumulatorn
+      reg.a = anybyte(a + 1)       'Stoppa byte i ackumulatorn...
       IF typ = 2 THEN opcode$ = "LDA $" + HEX$(a)
       IF typ = 3 THEN opcode$ = "LDA $" + HEX$(a - reg.x) + ",X  =$" + HEX$(a)
       cycle typ + 1
   
    CASE 4 TO 5                     'Absolut. Tv† operander.
-      pc = pc + 2
-      GET #2, pc - 1, byte$: a = ASC(byte$)
-      GET #2, pc, byte$: b = ASC(byte$)
+      a = getbyte
+      b = getbyte
       a = a + b * 256
       IF typ = 5 THEN a = a + reg.x
-      GET #2, a + 1, byte$
-      reg.a = ASC(byte$)
+      reg.a = anybyte(a + 1)
       IF typ = 4 THEN opcode$ = "LDA $" + HEX$(a)
       IF typ = 5 THEN opcode$ = "LDA $" + HEX$(a - reg.x) + ",X  =$" + HEX$(a)
       cycle 4                                   'OBS! KONSTIG!
@@ -461,19 +523,13 @@ END SUB
 SUB op.ldx (typ)
 SELECT CASE typ
    CASE 1                          'Direkt. En operand.
-      pc = pc + 1
-      GET #2, pc, byte$
-      reg.x = ASC(byte$)
+      reg.x = getbyte
       opcode$ = "LDX #$" + HEX$(reg.x)
       cycle 2
    CASE 2, 3                       'Zero Page (Y)
-      pc = pc + 1
-      GET #2, pc, byte$
-      reg.x = ASC(byte$)
+      reg.x = getbyte
       IF typ = 3 THEN reg.x = reg.x + reg.y
-      a = reg.x
-      GET #2, reg.x + 1, byte$
-      reg.x = ASC(byte$)
+      reg.x = anybyte(reg.x + 1)
       IF typ = 2 THEN opcode$ = "LDX $" + HEX$(a)
       IF typ = 3 THEN opcode$ = "LDX $" + HEX$(a - reg.y) + ",X  =" + HEX$(a)
       cycle typ + 1
@@ -487,7 +543,7 @@ SUB op.lsr (typ)
 
 SELECT CASE typ
    CASE 1                          'Ackumulatorn...
-      z = reg.a / 2                'skifta h”ger
+      z = reg.a / 2                'skifta h”ger  -Misst„nkt fel...
       reg.a = z
       IF z AND .5 THEN reg.s = reg.s OR 1 'Om utanf”r s„tt carry
       opcode$ = "LSR"
@@ -594,20 +650,18 @@ SUB op.sta (typ)
 'STA: Stoppa Ackumulatorn i minnet.
 SELECT CASE typ
    CASE 1 TO 2                       'Zero Page (X). En operand.
-      pc = pc + 1
-      GET #2, pc, byte$: a = ASC(byte$)'Put-kommandot var tjurigt mot asc
+      a = getbyte
       IF typ = 2 THEN a = a + reg.x
-      PUT #2, a + 1, reg.a
+      putbyte reg.a, a + 1
       opcode$ = "STA $" + HEX$(ASC(byte$)) + " (+$" + HEX$(reg.x) + ")  =$" + HEX$(a)
       cycle typ + 2
-   CASE 3 TO 5                       'Absoulut (X/Y). Tv† operander.
-      pc = pc + 2
-      GET #2, pc - 1, byte$: b = ASC(byte$)
-      GET #2, pc, byte$: a = ASC(byte$)
+   CASE 3 TO 5                       'Absolut (X/Y). Tv† operander.
+      b = getbyte
+      a = getbyte
       a = a * 256 + b
       IF typ = 4 THEN a = a + reg.x
       IF typ = 5 THEN a = a + reg.y
-      PUT #2, a + 1, reg.a
+      putbyte reg.a, a + 1
       opcode$ = "STA $" + HEX$(ASC(byte$) * 256 + b) + " (+$" + HEX$(reg.x) + "/$" + HEX$(reg.y) + ")  =$" + HEX$(a)
       IF typ = 3 THEN
          cycle 4
@@ -672,8 +726,15 @@ opcode$ = "TAY"
 cycle 2
 END SUB
 
+SUB putbyte (byte%, posi)
+byte$ = CHR$(byte%)
+PUT #2, posi, byte$
+END SUB
+
 SUB utskrift
-PRINT bytes$; opcode$
+hagla 500, 400, LCASE$(bytes$ + " " + opcode$)
+'PRINT bytes$; opcode$
+hagla 500, 407, "a:$" + LCASE$(HEX$(reg.a))
 PRINT "A:"; HEX$(reg.a); " X:"; HEX$(reg.x); " Y:"; HEX$(reg.y); " S:"; HEX$(reg.sp); " PC:"; HEX$(pc); " ";
 'Status: SV1BDIZC
 IF (reg.s AND 1) = 1 THEN PRINT "C";
