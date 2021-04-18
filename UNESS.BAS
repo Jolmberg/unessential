@@ -103,6 +103,7 @@ sprram$ = STRING$(256, CHR$(0))
 'uNESsential Nintendo-emulator. Version 0.145
 '
 'Nyheter:
+' Frameskipping.
 ' Paletter.
 ' Scrollning.
 ' SBC fixad.
@@ -271,7 +272,7 @@ INPUT #10, o$
 CLOSE
 IF o$ = "-" THEN
    OPEN "uness.cfg" FOR INPUT AS #10
-   PRINT "Welcome to uNESsential v0.14"
+   PRINT "Welcome to uNESsential v0.20"
    PRINT "Please tell me where your roms are stored (example: c:\roms)."
    INPUT "->", roms$
    IF RIGHT$(roms$, 1) = "\" THEN GOTO ooo

@@ -1,9 +1,17 @@
+
+     €ﬂﬂ€  € €ﬂﬂﬂﬂ €ﬂﬂﬂﬂ
+€  € €  €  € €‹‹   €‹‹‹‹ €ﬂﬂﬂ €ﬂﬂﬂ €ﬂ€ € ﬂﬂ€ﬂﬂ € €ﬂﬂ€ €
+€  € €  €  € €         € ﬂﬂﬂ€ €ﬂﬂ  € € €   €   € €‹‹€ €
+ﬂﬂﬂﬂ ﬂ  ﬂﬂﬂﬂ ﬂﬂﬂﬂﬂ ﬂﬂﬂﬂﬂ ﬂﬂﬂﬂ ﬂﬂﬂﬂ ﬂ ﬂﬂﬂ   ﬂ   ﬂ ﬂ  ﬂ ﬂﬂﬂﬂ
+No, it doesn't run "Balloon Force"! 
+
 License agreement:
 You must not view this file in Notepad. Use Edit.
-If you don't agree you should not use this program.
+If you don't agree you should delete this program immediately.
 
-uNESsential   0.14
-By Johannes Holmberg and Bjîrn èstrîm aka _Bnu
+uNESsential 0.20
+By Johannes Holmberg, Bjîrn "_Bnu" èstrîm and Don "FrodoDead" Jarrett.
+
 
 0. Contents
   1........Introduction
@@ -19,22 +27,20 @@ By Johannes Holmberg and Bjîrn èstrîm aka _Bnu
 
 1. Introduction
                                                                    
-  uNESsential is a NES emulator written in QBasic.
-  It is written by Johannes Holmberg and Bjîrn "_Bnu" èstrîm.
+  uNESsential is a NES emulator written in QBasic. It is written by
+  Johannes Holmberg, Bjîrn "_Bnu" èstrîm and Don "FrodoDead" Jarrett
 
-2. What's new                
+
+2. What's new
                                
-  Version 0.14
-  - _Bnu of AR/ZD/Emucamp/N'tendo fame has joined the project.
-  - File requester implemented.
-  - Gui is more informative.
-  - Debugger somewhat wrecked. (No opcode displaying)
-  - Amount of stupidity in CPU core reduced. Faster and smaller.
-  - Opcodes LSR and STA(?) fixed unintentionally.
-  - Opcodes ROL and ROR fixed. Stupid error.
-  - Opcodes ADC and SBC fixed.
-  - Better timing.
-  - Something wrecked in the process of reducing stupidity. (Dunno what)
+  Version 0.20
+  - Scrolling
+  - Fixed huge timing bug
+  - Palette emulation
+  - Page Up/Page Down can be used in file requester (buggy)
+  - Opcode SBC fixed.
+  - Frameskipping.
+
 
 3. Instructions                                                    
                                                                      
@@ -56,20 +62,23 @@ By Johannes Holmberg and Bjîrn èstrîm aka _Bnu
   Other Keys:                                                        
                                                                      
   Q      - Quit                                                      
-  O      - Toggle opcode output                                      
-  P      - Toggle opcode output                                      
-  B      - Breakpoint
+  O      - Toggle opcode output (slightly out of order)                                     
+  I      - Toggle opcode output (slightly out of order)
+  P      - Toggle palette emulation
+  B      - Set breakpoint
+  +      - Increase frameskip
+  -      - Decrease frameskip
 
   Opcode output is broken as of version 0.14. You can still use the
   O key to look at the registers though.
-  This will probably be fixed in the next version.
+  Maybe I'll have it fixed in the next version.
   Joypad emulation works on a toggle basis. Don't keep the physical
   keys pressed, or you will go deaf.
   To set a breakpoint, press B and then use the keys 1,2,3 and 4 to
   choose a breakpoint and hit enter.
 
 
-  4. Requirements                                            
+4. Requirements                                            
                                                              
   I'm not sure about system requirements really, but here's  
   what I think should be sufficient:                         
@@ -92,13 +101,9 @@ By Johannes Holmberg and Bjîrn èstrîm aka _Bnu
   - Joypad 1
                                                                 
   What it will emulate in the future:                           
-  - Attribute tables
-  - Scrolling
   - Joypad 2 (Possibly 3 and 4 too)                             
-  - Palettes                                                    
   - Sound (only if we manage to speed up emulation remarkably).  
-  - Some more mappers.                                          
-
+  - Some mappers.                                          
 
 
 6. Misc.                                                     
@@ -108,31 +113,41 @@ By Johannes Holmberg and Bjîrn èstrîm aka _Bnu
   If a game seems to get stuck on the title screen.
   Give it some time, go eat lunch or something.
   Some games need more than 100 frames to actually
-  get into the game.
+  get into the game. (Usually because the want to play some music)
 
-  I destroyed the opcode outputing because it was coded in a stupid way which
-  slowed down emulation. It will be back in the next version.
+  I destroyed the opcode outputting because it was coded in a stupid way
+  which slowed down emulation. It will be back in the next version.
 
-  Sprite flipping does not currently work in the y-axis.
+  Sprite flipping does not currently work in the y-axis with 8x16 sprites.
   I don't know of any game which uses it which means that any implementation
   of it will be terribly buggy.
 
-  We will probably implement palette emulation soon, but
-  the colours will never be correct since we're using a 16 colour
-  video mode.
+  A few words on the palette emulation:
+  uNESsential runs in a 16 colour video mode. This means that good palette
+  emulation is impossible.
+  Palette emulation currently works like this:
+  uNESsential includes a NES palette which uses only 16 colours.
+  When the background is rendered. A few of these colours are chosen and
+  are assigned to then actual 16 colours of the pc.
+  When sprites are to be rendered, they will look throught the palette,
+  and if they find the colours they need, they'll use them.
+  If any colours are missing, some parts of that sprite will be black.
+  This wastes colours, but it is pretty fast.
 
   Compatibility list:
-  As of v0.14 a few games actually work.
+  As of v0.20 quite a lot of games work.
   I don't feel like making a list though.
   Some games that work are.
-  Balloon Fight, Donkey Kong Junior and Ice Climber.
-  Ice Climber is unplayable due to the lack of scrolling :)
-  
+  Super Mario Bros, Balloon Fight, Donkey Kong Junior and Ice Climber.
+  If anyone wants to make a list, please do,
+  and I'll post it on the homepage.
+
   Why uNESs? The extra 's' is because I don't want people to   
   confuse uNESsential with another emulator called             
   Ultimate NES (uNES).                                         
 
-7. Credits                                                  
+
+7. Credits
                                                               
   Thanks to the following people who made this possible:
                                                               
@@ -149,20 +164,19 @@ By Johannes Holmberg and Bjîrn èstrîm aka _Bnu
   - Probably some more people. Mail us if we forgot you.       
 
 
-
-8. Disclaimer                                                     
+8. Disclaimer
                                                                     
-  Who cares anyway? Let us  just say one thing: "It's not our fault!" 
-
+  Who cares anyway? Let us just say one thing: "It's not our fault!" 
 
 
 9. More stuff                                           
                                                           
   Feel free to mail me (Johannes) at bapple@home.se,
-  or Bjîrn at klass9.v@jokkmokk.se.
+  _Bnu at klass9.v@jokkmokk.se,
+  FrodoDead at r.jarrett@worldnet.att.net
   The latest version of uNESsential can be downloaded at: 
   http://www.emucamp.com/unessential/                     
-  Copyright - Johannes Holmberg and Bjîrn èstrîm 1998
+  Copyright - Johannes Holmberg, Bjîrn èstrîm and Don Jarrett 1999
 
 
 "Oh no, run!" -R.W.
