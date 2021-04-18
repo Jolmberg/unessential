@@ -1,3 +1,10 @@
+'uNESsential v0.20 source code.
+'Copyright Johannes Holmberg, Bjîrn èstrîm aka _Bnu
+'and Don Jarrett aka FrodoDead.
+'Feel free to mail us if there is anything you don't understand,
+'Don't ask stupid things though.
+'Some things are in Swedish... :)
+'Remeber to put the FONT.DAT file in the same directory as the source code.
 DECLARE SUB save ()
 DECLARE SUB vb ()
 DECLARE SUB config ()
@@ -100,44 +107,14 @@ END
 7 firstread = 1
 skip = 2
 sprram$ = STRING$(256, CHR$(0))
-'uNESsential Nintendo-emulator. Version 0.145
-'
-'Nyheter:
-' Frameskipping.
-' Paletter.
-' Scrollning.
-' SBC fixad.
-'    SMB, Excite Bike DKJr(hoppas).
-' Fixat massa îverblivna timing-buggar sen cpu-ombyggningen.
-' PLA fixad. éndrade inte reg.s. <-Egentligen 0.14 (men inte i release).
-'
-'
-'AllmÑn info:
-'RAM-minne emuleras genom filen MEMORY.NIN.
-'VRAM emuleras genom VRAM.NIN.
-'Sprite-RAM emuleras genom sprram$.
-'Alla opcode-funktioner heter op.???(?).
-'Register emuleras genom variabler.
-'Alla register-variabler heter reg.?. (undantag: pc, som inte fÜr vara INT)
-
-'Variabler:
-'fil$ - Filnamn pÜ rommen som kîrs.
-'byte$ - variabel fîr hÑmtning av en byte.
-'WARNING! Sharea inte "byte$". DÜ blir det haveri. <---Snack! TvÑrtom!
-
 byte$ = CHR$(0)
 CLS
-'Ladda in en rom...
 config
 fil$ = COMMAND$
 IF fil$ = "" THEN fil$ = filerequest$
 IF fil$ = "" THEN END
 SCREEN 12
-
-'Rita lite saker...
 CLS
-'LINE (0, 0)-(256, 224), 8, B
-'Fîrberedelser...
 joy1reads = 1
 FOR r = 1 TO 253
    MID$(sprram$, r, 1) = CHR$(&HF0)
@@ -1373,7 +1350,7 @@ DEFSNG B
 SUB op.inx
 'INX: X-registret îkas med 1.
 reg.x = reg.x + 1
-IF reg.x = 256 THEN reg.x = 0    'Kanske overflow...
+IF reg.x = 256 THEN reg.x = 0    
 
 reg.s = reg.s AND 125
 IF reg.x = 0 THEN reg.s = reg.s OR 2
