@@ -1,3 +1,5 @@
+DECLARE SUB save ()
+DECLARE SUB vb ()
 DECLARE SUB config ()
 DECLARE FUNCTION filerequest$ ()
 DECLARE FUNCTION zpx! ()
@@ -42,7 +44,6 @@ DECLARE SUB putbyte (byte%, posi!)
 DECLARE FUNCTION getbyte% ()
 DECLARE SUB hagla (x, y, text$)
 DECLARE SUB op.tya ()
-DECLARE SUB cycle (r%)
 DECLARE SUB op.adc (typ!)
 DECLARE SUB op.bpl ()
 DECLARE SUB op.bmi ()
@@ -82,25 +83,32 @@ DEFINT C, R
 'Status: SV1BDIZC
 ' Alla register m†ste vara share-ade...
 loadfont       'Ladda in fonten...
-DIM SHARED reg.a, reg.x, reg.y, reg.s, pc, reg.sp, fil$, byte$, opcode$, cy
+DIM SHARED reg.a, reg.x, reg.y, reg.s, pc, reg.sp, fil$, byte$, opcode$
 DIM SHARED cycles, nmi, ut, bokstav(52, 5), bytes, rabies, vramposi, vblank
-DIM SHARED ppu1, brk, sprramposi, sprram$, ppustat, sprite0(1), lines, cyc
+DIM SHARED ppu1, brk, sprramposi, sprram$, ppustat, sprite0(1), lines, s
 DIM SHARED joy1emu, joy1reads, joy1reset, ppu2, firstread, bpoint, skip
-firstread = 1
+DIM SHARED mirroring, scrollwrite, hscroll, vscroll, pal(63, 2), colour(15)
+DIM SHARED spr(15), palemu, frame
+ON ERROR GOTO 14
+GOTO 7
+14
+SCREEN 0
+PRINT "D'oh!"
+PRINT "If this was caused by the file requester, don't worry about it."
+PRINT "If it was caused by something else, please mail us."
+END
+7 firstread = 1
+skip = 2
 sprram$ = STRING$(256, CHR$(0))
-'uNESsential Nintendo-emulator. Version 0.14
+'uNESsential Nintendo-emulator. Version 0.145
 '
 'Nyheter:
-' CPU-emulering f”rb„ttrad.
-' STA(?) och LSR fixade av misstag :)
-'    Pacman-titelbilden.
-' ROL fixad. Anv„nde reg.a som reg.s.
-' ROR fixad. Samma fel.
-' ADC och SBC fixade. Fel p† C-flagen
-'    Ice Climber, Ice Hockey mm.
-' N†gonting sabbat..
-'    Tennis resettar hela tiden.
-' PLA fixad. Žndrade inte reg.s. <-Inte i release.
+' Paletter.
+' Scrollning.
+' SBC fixad.
+'    SMB, Excite Bike DKJr(hoppas).
+' Fixat massa ”verblivna timing-buggar sen cpu-ombyggningen.
+' PLA fixad. Žndrade inte reg.s. <-Egentligen 0.14 (men inte i release).
 '
 '
 'Allm„n info:
@@ -134,7 +142,7 @@ FOR r = 1 TO 253
    MID$(sprram$, r, 1) = CHR$(&HF0)
 NEXT r
 COLOR 12
-hagla 1, 248, "joypads"
+hagla 1, 270, "joypads"
 hagla 1, 290, "pattern tables"
 OPEN fil$ FOR BINARY AS #1         'Rommen har filnummer #1.
 OPEN "MEMORY.NIN" FOR BINARY AS #2 'Minnet har filnummer #2. OBS Byte 1=0
@@ -224,7 +232,8 @@ END IF
 END FUNCTION
 
 FUNCTION breakpoint
-hagla 260, 10, "breakpoint:"
+COLOR 14
+hagla 400, 1, "breakpoint:"
 DO WHILE u = 0
    SELECT CASE INKEY$
       CASE "4"
@@ -251,12 +260,12 @@ LOOP
 IF u = 1 THEN breakpoint = bp4 + bp3 + bp2 + bp1
 EXIT FUNCTION
 up:
-LINE (310, 10)-(330, 18), 0, BF
-hagla 310, 10, LCASE$(HEX$(bp4 \ 4096) + HEX$(bp3 \ 256) + HEX$(bp2 \ 16) + HEX$(bp1))
+LINE (450, 1)-(470, 9), 0, BF
+hagla 450, 1, LCASE$(HEX$(bp4 \ 4096) + HEX$(bp3 \ 256) + HEX$(bp2 \ 16) + HEX$(bp1))
 RETURN
 END FUNCTION
 
-SUB config
+SUB config                          'Read the cfg file (rom directory) :)
 OPEN "uness.cfg" FOR INPUT AS #10
 INPUT #10, o$
 CLOSE
@@ -277,10 +286,13 @@ END IF
 END SUB
 
 DEFINT A-B, X-Y
-SUB crappygfxengine 'F”rmodligen den s„msta grafikmotor som n†gonsin skapats...
-'Bakgrund.
+SUB crappygfxengine        'Probably the worst graphics engine ever created!
+'Background.
 'IF (ppu2 AND 8) THEN
+DIM imgpal(15)
 DIM tile(7, 7)
+DIM bk(63, 59)
+DIM attr(31, 31)
 IF (ppu1 AND 16) = 16 THEN okning = 128
 o = ppu1 AND 3
 IF o = 0 THEN adr = &H2000
@@ -288,18 +300,134 @@ IF o = 1 THEN adr = &H2400
 IF o = 2 THEN adr = &H2800
 IF o = 3 THEN adr = &H2C00
 bytes$ = STRING$(960, " ")
-GET #4, adr + 1, bytes$
-FOR c = 1 TO 960
-   'LOCATE 1, 40: PRINT ASC(MID$(bytes$, c, 1))
-   a = okning + ((ASC(MID$(bytes$, c, 1)) AND 15) * 8)
-   b = 300 + ((ASC(MID$(bytes$, c, 1)) AND 240) / 2)
-   GET (a, b)-(a + 7, b + 7), tile
-   'PSET (a, b), 12
-   PUT (x, y), tile, PSET
-   x = x + 8
-   IF x = 256 THEN y = y + 8: x = 0
+bytespr$ = STRING$(16, " ")
+GET #4, &H2001, bytes$
+'Set palette(s).
+LOCATE 1, 63
+ERASE colour
+FOR c = 0 TO 15
+   GET #4, &H3F01 + c, byte$
+   r = ASC(byte$) AND 15
+   colour(r) = c
+   IF palemu = 1 THEN PALETTE c, 65536 * pal(r, 2) + 256 * pal(r, 1) + pal(r, 0)
+   'COLOR c
+   'PRINT "ß";
 NEXT c
+LOCATE 2, 63
+FOR c = 0 TO 15
+   GET #4, &H3F11 + c, byte$
+   r = ASC(byte$) AND 15
+   'COLOR colour(r)
+   spr(c) = colour(r)
+   'PRINT "ß";
+NEXT c
+
+'Build the 32*30 tile matrix.
+FOR cy = 0 TO 29
+   FOR cx = 0 TO 31
+      bk(cx, cy) = ASC(MID$(bytes$, cy * 32 + cx + 1, 1))
+   NEXT cx
+NEXT cy
+GET #4, &H2401, bytes$
+FOR cy = 0 TO 29
+   FOR cx = 32 TO 63
+      bk(cx, cy) = ASC(MID$(bytes$, cy * 32 + cx - 31, 1))
+   NEXT cx
+NEXT cy
+GET #4, &H2801, bytes$
+FOR cy = 30 TO 59
+   FOR cx = 0 TO 31
+      bk(cx, cy) = ASC(MID$(bytes$, (cy - 30) * 32 + cx + 1, 1))
+   NEXT cx
+NEXT cy
+GET #4, &H2C01, bytes$
+FOR cy = 30 TO 59
+   FOR cx = 32 TO 63
+      bk(cx, cy) = ASC(MID$(bytes$, (cy - 30) * 32 + cx - 31, 1))
+   NEXT cx
+NEXT cy
+bytes$ = STRING$(&H40, " ")
+GET #4, &H23C1, bytes$
+FOR cy = 0 TO 7
+   FOR cx = 0 TO 7
+      c = ASC(MID$(bytes$, cy * 8 + cx + 1, 1))
+      attr(cx * 2, cy * 2) = c AND 3
+      attr(cx * 2 + 1, cy * 2) = (c \ 4) AND 3
+      attr(cx * 2, cy * 2 + 1) = (c \ 16) AND 3
+      attr(cx * 2 + 1, cy * 2 + 1) = c \ 64
+   NEXT cx
+NEXT cy
+GET #4, &H27C1, bytes$
+FOR cy = 0 TO 7
+   FOR cx = 8 TO 15
+      c = ASC(MID$(bytes$, cy * 8 + cx - 7, 1))
+      attr(cx * 2, cy * 2) = c AND 3
+      attr(cx * 2 + 1, cy * 2) = (c \ 4) AND 3
+      attr(cx * 2, cy * 2 + 1) = (c \ 16) AND 3
+      attr(cx * 2 + 1, cy * 2 + 1) = c \ 64
+   NEXT cx
+NEXT cy
+GET #4, &H2BC1, bytes$
+FOR cy = 8 TO 15
+   FOR cx = 0 TO 7
+      c = ASC(MID$(bytes$, (cy - 8) * 8 + cx + 1, 1))
+      attr(cx * 2, cy * 2 - 1) = c AND 3
+      attr(cx * 2 + 1, cy * 2 - 1) = (c \ 4) AND 3
+      attr(cx * 2, cy * 2) = (c \ 16) AND 3
+      attr(cx * 2 + 1, cy * 2) = c \ 64
+   NEXT cx
+NEXT cy
+GET #4, &H2FC1, bytes$
+FOR cy = 8 TO 15
+   FOR cx = 8 TO 15
+      c = ASC(MID$(bytes$, (cy - 8) * 8 + cx - 7, 1))
+      attr(cx * 2, cy * 2) = c AND 3
+      attr(cx * 2 + 1, cy * 2) = (c \ 4) AND 3
+      attr(cx * 2, cy * 2 + 1) = (c \ 16) AND 3
+      attr(cx * 2 + 1, cy * 2 + 1) = c \ 64
+   NEXT cx
+NEXT cy
+cx = hscroll \ 8
+cy = vscroll \ 8
+cxa = hscroll \ 16
+cya = vscroll \ 16
+cxb = hscroll AND 15
+cyb = vscroll AND 15
+IF o = 1 THEN cx = cx + 32: cxa = cxa + 16
+IF o = 2 THEN cy = cy + 30: cya = cya + 15
+cxm = hscroll AND 7
+cym = vscroll AND 7
+y = 15
+x = 15
+FOR b = 0 TO 15
+   FOR a = 0 TO 15
+      c = a + cxa
+      d = b + cya
+      IF c > 31 THEN c = c - 32
+      IF d > 29 THEN d = d - 30
+      'LOCATE 10, 40: PRINT c
+      LINE ((cxb XOR 15) + a * 16, (cyb XOR 15) + b * 16)-((cxb XOR 15) + a * 16 + 15, (cym XOR 15) + b * 16 + 15), attr(c, d) * 4, BF
+   NEXT a
+NEXT b
+
+FOR bb = cy TO cy + 29
+   FOR ab = cx TO cx + 31
+      bbb = bb
+      IF bbb > 59 THEN bbb = bbb - 60
+      abb = ab
+      IF abb > 63 THEN abb = abb - 64
+      'LOCATE 1, 40: PRINT ASC(MID$(bytes$, c, 1))
+      a = okning + ((bk(abb, bbb) AND 15) * 8)
+      b = 300 + ((bk(abb, bbb) AND 240) / 2)
+      GET (a, b)-(a + 7, b + 7), tile
+      'PSET (a, b), 12
+      PUT (x - cxm, y - cym), tile, OR
+      x = x + 8
+      IF x = 271 THEN y = y + 8: x = 15
+   NEXT ab
+NEXT bb
 'END IF
+
 'Sprites.
 'IF (ppu2 AND 16) THEN
 asize = (ppu1 AND 32)
@@ -308,7 +436,8 @@ IF asize = 0 THEN
    FOR c = 1 TO 253 STEP 4
       y = ASC(MID$(sprram$, c))
       IF y < &HF0 THEN
-         x = ASC(MID$(sprram$, c + 3))
+         y = y + 15
+         x = ASC(MID$(sprram$, c + 3)) + 15
          attr = ASC(MID$(sprram$, c + 2))
          IF (attr AND 128) THEN
             sy = 7: sys = -1
@@ -321,12 +450,13 @@ IF asize = 0 THEN
             sx = 0: sxs = 1
          END IF
          rp = (attr AND 32)
+         rpal = (attr AND 3) * 4
          a = okning + ((ASC(MID$(sprram$, c + 1, 1)) AND 15) * 8)
          b = 300 + ((ASC(MID$(sprram$, c + 1, 1)) AND 240) \ 2)
          FOR cy = sy TO (sy XOR 7) STEP sys
             FOR cx = sx TO (sx XOR 7) STEP sxs
-               IF rp = 0 THEN IF POINT(a + cx, b + cy) > 0 THEN PSET (x + ax, y + bx + 1), POINT(a + cx, b + cy)
-               IF rp = 32 THEN IF POINT(x + ax, y + bx + 1) = 0 THEN PSET (x + ax, y + bx + 1), POINT(a + cx, b + cy)
+               IF rp = 0 THEN IF POINT(a + cx, b + cy) > 0 THEN PSET (x + ax, y + bx + 1), spr(POINT(a + cx, b + cy) OR rpal)
+               IF rp = 32 THEN IF POINT(x + ax, y + bx + 1) = 0 THEN PSET (x + ax, y + bx + 1), spr(POINT(a + cx, b + cy) OR rpal)
                ax = ax + 1
             NEXT cx
             bx = bx + 1: ax = 0
@@ -339,7 +469,8 @@ IF asize = 32 THEN
    FOR c = 1 TO 253 STEP 4
       y = ASC(MID$(sprram$, c))
       IF y < &HF0 THEN
-         x = ASC(MID$(sprram$, c + 3))
+      y = y + 15
+         x = ASC(MID$(sprram$, c + 3)) + 15
          attr = ASC(MID$(sprram$, c + 2))
          IF (attr AND 128) THEN
             sy = 7: sys = -1
@@ -347,14 +478,15 @@ IF asize = 32 THEN
             sy = 0: sys = 1
          END IF
          rp = (attr AND 32)
+         rpal = (attr AND 3) * 4
          IF (attr AND 64) = 0 THEN
             a = okning + ((ASC(MID$(sprram$, c + 1, 1)) AND 15) * 8)
             b = 300 + ((ASC(MID$(sprram$, c + 1, 1)) AND 240) \ 2)
             FOR spr = 8 TO 0 STEP -8
             FOR cy = sy TO (sy XOR 7) STEP sys
                FOR cx = 0 TO 7
-                  IF rp = 0 THEN IF POINT(a + cx, b + cy) > 0 THEN PSET (x + ax, y + bx + 1 + spr), POINT(a + cx, b + cy)
-                  IF rp = 32 THEN IF POINT(x + ax, y + bx + 1 + spr) = 0 THEN PSET (x + ax, y + bx + 1 + spr), POINT(a + cx, b + cy)
+                  IF rp = 0 THEN IF POINT(a + cx, b + cy) > 0 THEN PSET (x + ax, y + bx + 1 + spr), (POINT(a + cx, b + cy) OR rpal)
+                  IF rp = 32 THEN IF POINT(x + ax, y + bx + 1 + spr) = 0 THEN PSET (x + ax, y + bx + 1 + spr), (POINT(a + cx, b + cy) OR rpal)
                   'IF POINT(a + cx, b + cy) > 0 THEN PSET (x + ax, y + bx + 1 + spr), POINT(a + cx, b + cy)
                   ax = ax + 1
                NEXT cx
@@ -374,64 +506,24 @@ END IF
 END SUB
 
 DEFSNG A-B, X-Y
-SUB cycle (r)
-cycles = cycles + r
-IF vblank = 1 THEN
-   IF cycles >= 4326 THEN
-      BEEP: BEEP: BEEP: BEEP: BEEP: BEEP
-      cycles = 7
-      ppustat = ppustat AND 127
-      vblank = 0
-      'ut = 0
-   END IF
-END IF
-IF cycles >= 25503 THEN
-   'ut = 1
-   cycles = 0
-   ppustat = ppustat OR 128
-   ppustat = ppustat AND 191
-   vblank = 1
-   'ut = 1
-   IF (ppu1 AND 128) THEN
-      BEEP: BEEP: BEEP: BEEP: BEEP: BEEP
-      cycles = 7
-      'L„gg pc p† stacken.
-      b% = (pc AND 65280) / 256
-      a% = (pc AND 255)
-      push b%
-      push a%
-      push reg.s        'L„gg status p† stacken...
-      reg.s = reg.s OR 4
-      'opcode$ = "vblank: hoppar till " + HEX$(nmi)
-      pc = nmi
-   END IF
-   crappygfxengine    'Vederv„rdig grafikmotor som borde f”rbjudas!
-END IF
-END SUB
-
 SUB emulate
 byte$ = " "
 'ut = 1
-'OPEN "debug.dat" FOR BINARY AS #9
+'OPEN "debug.log" FOR BINARY AS #9
 DO
 GET #2, pc, byte$
 bytes = ASC(byte$)
 'En miljard case-ar!
 'OBS! B”r sorteras i ordningen: vanligast f”rst - ovanligast sist...
 SELECT CASE ASC(byte$)
-   CASE &HA9
-      reg.a = getbyte
-      reg.s = reg.s AND 125
-      IF reg.a = 0 THEN reg.s = reg.s OR 2  'Z?
-      IF reg.a > 127 THEN reg.s = reg.s OR 128'S?
-      cycle 2
-   CASE &HA5: cy = 3: op.lda (getbyte)
-   CASE &HB5: cy = 4: op.lda (zpx)
-   CASE &HAD: cy = 4: op.lda (abso)': IF abso = &H2002 THEN opcode$ = "LDA $2002"
-   CASE &HBD: cy = 4: op.lda (absx)
-   CASE &HB9: cy = 4: op.lda (absy)
-   CASE &HA1: cy = 6: op.lda (pre)
-   CASE &HB1: cy = 5: op.lda (post)
+   CASE &HA9: op.lda (pc): pc = pc + 1: s = s + 2
+   CASE &HA5: op.lda (getbyte): s = s + 3
+   CASE &HB5: op.lda (zpx): s = s + 4
+   CASE &HAD: op.lda (abso): s = s + 4
+   CASE &HBD: op.lda (absx): s = s + 4
+   CASE &HB9: op.lda (absy): s = s + 4
+   CASE &HA1: op.lda (pre): s = s + 6
+   CASE &HB1: op.lda (post): s = s + 5
 
    CASE &HD0: op.bne
    CASE &HF0: op.beq
@@ -449,54 +541,46 @@ SELECT CASE ASC(byte$)
    CASE &H9A: op.txs
    CASE &HBA: op.tsx
   
-   CASE &HE6: cy = 5: op.inc (getbyte)
-   CASE &HF6: cy = 6: op.inc (zpx)
-   CASE &HEE: cy = 6: op.inc (abso)
-   CASE &HFE: cy = 7: op.inc (absx)
+   CASE &HE6: op.inc (getbyte): s = s + 5
+   CASE &HF6: op.inc (zpx): s = s + 6
+   CASE &HEE: op.inc (abso): s = s + 6
+   CASE &HFE: op.inc (absx): s = s + 7
 
-   CASE &HC6: cy = 5: op.dec (getbyte)
-   CASE &HD6: cy = 6: op.dec (zpx)
-   CASE &HCE: cy = 6: op.dec (abso)
-   CASE &HDE: cy = 7: op.dec (absx)
+   CASE &HC6: op.dec (getbyte): s = s + 5
+   CASE &HD6: op.dec (zpx): s = s + 6
+   CASE &HCE: op.dec (abso): s = s + 6
+   CASE &HDE: op.dec (absx): s = s + 7
 
    CASE &HE8: op.inx
    CASE &HC8: op.iny
 
-   CASE &H85: cy = 2: op.sta (getbyte)
-   CASE &H95: cy = 3: op.sta (zpx)
-   CASE &H8D: cy = 3: op.sta (abso)
-   CASE &H9D: cy = 4: op.sta (absx)
-   CASE &H99: cy = 5: op.sta (absy)
-   CASE &H81: cy = 6: op.sta (pre)
-   CASE &H91: cy = 6: op.sta (post)
+   CASE &H85: op.sta (getbyte): s = s + 2
+   CASE &H95: op.sta (zpx): s = s + 3
+   CASE &H8D: op.sta (abso): s = s + 3
+   CASE &H9D: op.sta (absx): s = s + 4
+   CASE &H99: op.sta (absy): s = s + 5
+   CASE &H81: op.sta (pre): s = s + 6
+   CASE &H91: op.sta (post): s = s + 6
 
-   CASE &H86: cy = 3: op.stx (getbyte)
-   CASE &H96: cy = 4: op.stx (zpy)
-   CASE &H8E: cy = 4: op.stx (abso)
+   CASE &H86: op.stx (getbyte): s = s + 3
+   CASE &H96: op.stx (zpy): s = s + 4
+   CASE &H8E: op.stx (abso): s = s + 4
   
-   CASE &H84: cy = 3: op.sty (getbyte)
-   CASE &H94: cy = 4: op.sty (zpx)
-   CASE &H8C: cy = 4: op.sty (abso)
+   CASE &H84: op.sty (getbyte): s = s + 3
+   CASE &H94: op.sty (zpx): s = s + 4
+   CASE &H8C: op.sty (abso): s = s + 4
 
-   CASE &HA2: reg.x = getbyte
-      reg.s = reg.s AND 125
-      IF reg.x = 0 THEN reg.s = reg.s OR 2  'Z?
-      IF reg.x > 127 THEN reg.s = reg.s OR 128'S?
-      cycle 2
-   CASE &HA6: cy = 3: op.ldx (getbyte)
-   CASE &HB6: cy = 4: op.ldx (zpy)
-   CASE &HAE: cy = 4: op.ldx (abso)
-   CASE &HBE: cy = 4: op.ldx (absy)
+   CASE &HA2: op.ldx (pc): pc = pc + 1: s = s + 2
+   CASE &HA6: op.ldx (getbyte): s = s + 3
+   CASE &HB6: op.ldx (zpy): s = s + 4
+   CASE &HAE: op.ldx (abso): s = s + 4
+   CASE &HBE: op.ldx (absy): s = s + 4
 
-   CASE &HA0: reg.y = getbyte
-      reg.s = reg.s AND 125
-      IF reg.y = 0 THEN reg.s = reg.s OR 2  'Z?
-      IF reg.y > 127 THEN reg.s = reg.s OR 128'S?
-      cycle 2
-   CASE &HA4: cy = 3: op.ldy (getbyte)
-   CASE &HB4: cy = 4: op.ldy (zpx)
-   CASE &HAC: cy = 4: op.ldy (abso)
-   CASE &HBC: cy = 4: op.ldy (absx)
+   CASE &HA0: op.ldy (pc): pc = pc + 1: s = s + 2
+   CASE &HA4: op.ldy (getbyte): s = s + 3
+   CASE &HB4: op.ldy (zpx): s = s + 4
+   CASE &HAC: op.ldy (abso): s = s + 4
+   CASE &HBC: op.ldy (absx): s = s + 4
   
    CASE &HCA: op.dex
    CASE &H88: op.dey
@@ -509,65 +593,47 @@ SELECT CASE ASC(byte$)
    CASE &H4A: reg.s = reg.s AND 254: reg.s = (reg.s OR (reg.a AND 1))
    reg.a = reg.a \ 2: reg.s = reg.s AND 125
    IF reg.a = 0 THEN reg.s = reg.s OR 2
-   cycle 2
-   CASE &H46: cy = 5: op.lsr (getbyte)
-   CASE &H56: cy = 6: op.lsr (zpx)
-   CASE &H4E: cy = 6: op.lsr (abso)
-   CASE &H5E: cy = 7: op.lsr (absx)
+   s = s + 2
+   CASE &H46: op.lsr (getbyte): s = s + 5
+   CASE &H56: op.lsr (zpx): s = s + 6
+   CASE &H4E: op.lsr (abso): s = s + 6
+   CASE &H5E: op.lsr (absx): s = s + 7
 
    CASE &HA: reg.s = reg.s AND 254: reg.a = reg.a * 2
       IF (reg.a AND 256) THEN reg.a = reg.a - 256: reg.s = reg.s OR 1
       reg.s = reg.s AND 125
       IF reg.a = 0 THEN reg.s = reg.s OR 2
       IF reg.a > 127 THEN reg.s = reg.s OR 128
-      cycle 2
-   CASE &H6: op.asl (getbyte)
-   CASE &H16: op.asl (zpx)
-   CASE &HE: op.asl (abso)
-   CASE &H1E: op.asl (absx)
+      s = s + 2
+   CASE &H6: op.asl (getbyte): s = s + 5
+   CASE &H16: op.asl (zpx): s = s + 6
+   CASE &HE: op.asl (abso): s = s + 6
+   CASE &H1E: op.asl (absx): s = s + 7
 
-   CASE &H29
-      r = getbyte
-      reg.a = reg.a AND r
-      reg.s = reg.s AND 125
-      IF reg.a = 0 THEN reg.s = reg.s OR 2
-      IF reg.a > 127 THEN reg.s = reg.s OR 128
-      cycle 2
-   CASE &H25: op.and (getbyte): cycle 3
-   CASE &H35: op.and (zpx): cycle 4
-   CASE &H2D: op.and (abso): cycle 4
-   CASE &H3D: op.and (absx): cycle 4
-   CASE &H39: op.and (absy): cycle 4
-   CASE &H21: op.and (pre): cycle 6
-   CASE &H31: op.and (post): cycle 5
+   CASE &H29: op.and (pc): pc = pc + 1: s = s + 2
+   CASE &H25: op.and (getbyte): s = s + 3
+   CASE &H35: op.and (zpx): s = s + 4
+   CASE &H2D: op.and (abso): s = s + 4
+   CASE &H3D: op.and (absx): s = s + 4
+   CASE &H39: op.and (absy): s = s + 4
+   CASE &H21: op.and (pre): s = s + 6
+   CASE &H31: op.and (post): s = s + 5
 
-   CASE &H9
-      r = getbyte
-      reg.a = reg.a OR r
-      reg.s = reg.s AND 125
-      IF reg.a = 0 THEN reg.s = reg.s OR 2
-      IF reg.a > 127 THEN reg.s = reg.s OR 128
-      cycle 2
-   CASE &H5: op.ora (getbyte): cycle 3
-   CASE &H15: op.ora (zpx): cycle 4
-   CASE &HD: op.ora (abso): cycle 4
-   CASE &H1D: op.ora (absx): cycle 4
-   CASE &H19: op.ora (absy): cycle 4
-   CASE &H1: op.ora (pre): cycle 6
-   CASE &H11: op.ora (post): cycle 5
+   CASE &H9: op.ora (pc): pc = pc + 1: s = s + 2
+   CASE &H5: op.ora (getbyte): s = s + 3
+   CASE &H15: op.ora (zpx): s = s + 4
+   CASE &HD: op.ora (abso): s = s + 4
+   CASE &H1D: op.ora (absx): s = s + 4
+   CASE &H19: op.ora (absy): s = s + 4
+   CASE &H1: op.ora (pre): s = s + 6
+   CASE &H11: op.ora (post): s = s + 5
 
-   CASE &H49
-      r = getbyte
-      reg.a = reg.a XOR r
-      reg.s = reg.s AND 125
-      IF reg.a = 0 THEN reg.s = reg.s OR 2      'Z?
-      IF reg.a > 127 THEN reg.s = reg.s OR 128  'S?
-      cycle 2
-   CASE &H45: op.eor (getbyte): cycle 3
-   CASE &H55: op.eor (zpx): cycle 4
-   CASE &H4D: op.eor (abso): cycle 4
-   CASE &H5D: op.eor (absx): cycle 4
-   CASE &H59: op.eor (absy): cycle 4
+   CASE &H49: op.eor (pc): pc = pc + 1: s = s + 2
+   CASE &H45: op.eor (getbyte): s = s + 3
+   CASE &H55: op.eor (zpx): s = s + 4
+   CASE &H4D: op.eor (abso): s = s + 4
+   CASE &H5D: op.eor (absx): s = s + 4
+   CASE &H59: op.eor (absy): s = s + 4
 
    CASE &H2A
       reg.a = reg.a + reg.a + (reg.s AND 1)
@@ -579,11 +645,11 @@ SELECT CASE ASC(byte$)
       reg.s = reg.s AND 125
       IF reg.a = 0 THEN reg.s = reg.s OR 2
       IF reg.a > 127 THEN reg.s = reg.s OR 128
-      cycle 2
-   CASE &H26: op.rol (getbyte): cycle 5
-   CASE &H36: op.rol (zpx): cycle 6
-   CASE &H2E: op.rol (abso): cycle 6
-   CASE &H3E: op.rol (absx): cycle 7
+      s = s + 2
+   CASE &H26: op.rol (getbyte): s = s + 5
+   CASE &H36: op.rol (zpx): s = s + 6
+   CASE &H2E: op.rol (abso): s = s + 6
+   CASE &H3E: op.rol (absx): s = s + 7
 
    CASE &H6A
       reg.a = reg.a + (reg.s AND 1) * 256
@@ -593,11 +659,11 @@ SELECT CASE ASC(byte$)
       reg.s = reg.s AND 125
       IF reg.a = 0 THEN reg.s = reg.s OR 2
       IF reg.a > 127 THEN reg.s = reg.s OR 128
-      cycle 2
-   CASE &H66: op.ror (getbyte): cycle 5
-   CASE &H76: op.ror (zpx): cycle 6
-   CASE &H6E: op.ror (abso): cycle 6
-   CASE &H7E: op.ror (absx): cycle 7
+      s = s + 2
+   CASE &H66: op.ror (getbyte): s = s + 5
+   CASE &H76: op.ror (zpx): s = s + 6
+   CASE &H6E: op.ror (abso): s = s + 6
+   CASE &H7E: op.ror (absx): s = s + 7
 
    CASE &H38: op.sec
    CASE &HF8: op.sed
@@ -614,89 +680,90 @@ SELECT CASE ASC(byte$)
 
    CASE &H60: op.rts
 
-   CASE &HC9
-      r = getbyte
-      reg.s = reg.s AND 124
-      IF r = reg.a THEN reg.s = reg.s OR 3
-      IF ((reg.a - r) AND 128) THEN reg.s = reg.s OR 128
-      IF r < reg.a THEN reg.s = reg.s OR 1
-      cycle 2
-   CASE &HC5: op.cmp (getbyte): cycle 3
-   CASE &HD5: op.cmp (zpx): cycle 4
-   CASE &HCD: op.cmp (abso): cycle 4
-   CASE &HDD: op.cmp (absx): cycle 4
-   CASE &HD9: op.cmp (absy): cycle 4
-   CASE &HC1: op.cmp (pre): cycle 6
-   CASE &HD1: op.cmp (post): cycle 5
+   CASE &HC9: op.cmp (pc): pc = pc + 1: s = s + 2
+   CASE &HC5: op.cmp (getbyte): s = s + 3
+   CASE &HD5: op.cmp (zpx): s = s + 4
+   CASE &HCD: op.cmp (abso): s = s + 4
+   CASE &HDD: op.cmp (absx): s = s + 4
+   CASE &HD9: op.cmp (absy): s = s + 4
+   CASE &HC1: op.cmp (pre): s = s + 6
+   CASE &HD1: op.cmp (post): s = s + 5
 
-   CASE &HE0
-      r = getbyte
-      reg.s = reg.s AND 124
-      IF r = reg.x THEN reg.s = reg.s OR 3
-      IF ((reg.x - r) AND 128) THEN reg.s = reg.s OR 128
-      IF r < reg.x THEN reg.s = reg.s OR 1
-      cycle 2
-   CASE &HE4: op.cpx (getbyte): cycle 3
-   CASE &HEC: op.cpx (abso): cycle 4
+   CASE &HE0: op.cpx (pc): pc = pc + 1: s = s + 2
+   CASE &HE4: op.cpx (getbyte): s = s + 3
+   CASE &HEC: op.cpx (abso): s = s + 4
   
-   CASE &HC0
-      r = getbyte
-      reg.s = reg.s AND 124
-      IF r = reg.y THEN reg.s = reg.s OR 3
-      IF ((reg.y - r) AND 128) THEN reg.s = reg.s OR 128
-      IF r < reg.y THEN reg.s = reg.s OR 1
-      cycle 2
-
-   CASE &HC4: op.cpy (getbyte): cycle 3
-   CASE &HCC: op.cpy (abso): cycle 4
+   CASE &HC0: op.cpy (pc): pc = pc + 1: s = s + 2
+   CASE &HC4: op.cpy (getbyte): s = s + 3
+   CASE &HCC: op.cpy (abso): s = s + 4
   
-   CASE &H24: op.bit (getbyte): cycle 3
-   CASE &H2C: op.bit (abso): cycle 4
+   CASE &H24: op.bit (getbyte): s = s + 3
+   CASE &H2C: op.bit (abso): s = s + 4
 
-   CASE &H69: op.adc (pc): pc = pc + 1: cycle 2
-   CASE &H65: op.adc (getbyte): cycle 3
-   CASE &H75: op.adc (zpx): cycle 4
-   CASE &H6D: op.adc (abso): cycle 4
-   CASE &H7D: op.adc (absx): cycle 4
-   CASE &H79: op.adc (absy): cycle 4
-   CASE &H61: op.adc (pre): cycle 6
-   CASE &H71: op.adc (post): cycle 5
+   CASE &H69: op.adc (pc): pc = pc + 1: s = s + 2
+   CASE &H65: op.adc (getbyte): s = s + 3
+   CASE &H75: op.adc (zpx): s = s + 4
+   CASE &H6D: op.adc (abso): s = s + 4
+   CASE &H7D: op.adc (absx): s = s + 4
+   CASE &H79: op.adc (absy): s = s + 4
+   CASE &H61: op.adc (pre): s = s + 6
+   CASE &H71: op.adc (post): s = s + 5
 
-   CASE &HE9: op.sbc (pc): pc = pc + 1: cycle 2
-   CASE &HE5: op.sbc (getbyte): cycle 3
-   CASE &HF5: op.sbc (zpx): cycle 4
-   CASE &HED: op.sbc (abso): cycle 4
-   CASE &HFD: op.sbc (absx): cycle 4
-   CASE &HF9: op.sbc (absy): cycle 4
+   CASE &HE9: op.sbc (pc): pc = pc + 1: s = s + 2
+   CASE &HE5: op.sbc (getbyte): s = s + 3
+   CASE &HF5: op.sbc (zpx): s = s + 4
+   CASE &HED: op.sbc (abso): s = s + 4
+   CASE &HFD: op.sbc (absx): s = s + 4
+   CASE &HF9: op.sbc (absy): s = s + 4
 
    CASE &H0: op.brk
   
    CASE &H40: op.rti
 
-   CASE &HEA: opcode$ = "NOP": cycle 2
+   CASE &HEA: opcode$ = "NOP": s = s + 2
   
    CASE ELSE: opcode$ = "Unimplemented :(": ut = 1
 END SELECT
+IF s > 113.85 THEN
+   s = s - 113.85
+   lines = lines + 1
+   IF (ppustat AND 64) = 0 THEN
+      IF (ppu2 AND 16) THEN
+         IF ASC(MID$(sprram$, 1, 1)) + 1 = lines THEN ppustat = ppustat OR 64
+      END IF
+   END IF
+   IF lines = 224 THEN vb
+   IF lines = 262 THEN vb: lines = 0
+END IF
+
 IF ut = 1 THEN utskrift
 SELECT CASE INKEY$
    CASE "j": pc = 53332
-   CASE "o", "p": ut = ut XOR 1
+   CASE "o", "i": ut = ut XOR 1
+   CASE "p": palemu = palemu XOR 1: PALETTE
    CASE "n": cycles = 27007
-   CASE "r": CLS : patterntables
+   'CASE "r": CLS : patterntables
    CASE "d": crappygfxengine
    CASE "b": bpoint = breakpoint
-   CASE "z": joy1emu = joy1emu XOR 1: PSET (21, 262), POINT(21, 262) XOR 9
-   CASE "x": joy1emu = joy1emu XOR 2: PSET (19, 262), POINT(19, 262) XOR 9
-   CASE "c": joy1emu = joy1emu XOR 4: PSET (14, 262), POINT(14, 262) XOR 9
-   CASE "v": joy1emu = joy1emu XOR 8: PSET (16, 262), POINT(16, 262) XOR 9
-   CASE CHR$(0) + "H": joy1emu = joy1emu XOR 16: PSET (10, 260), POINT(10, 260) XOR 9
-   CASE CHR$(0) + "P": joy1emu = joy1emu XOR 32: PSET (10, 262), POINT(10, 262) XOR 9
-   CASE CHR$(0) + "K": joy1emu = joy1emu XOR 64: PSET (9, 261), POINT(9, 261) XOR 9
-   CASE CHR$(0) + "M": joy1emu = joy1emu XOR 128: PSET (11, 261), POINT(11, 261) XOR 9
+   CASE "+": skip = skip + 1
+   CASE "-": IF skip > 1 THEN skip = skip - 1
+   CASE "z": joy1emu = joy1emu XOR 1: PSET (21, 284), POINT(21, 284) XOR 9
+   CASE "x": joy1emu = joy1emu XOR 2: PSET (19, 284), POINT(19, 284) XOR 9
+   CASE "c": joy1emu = joy1emu XOR 4: PSET (14, 284), POINT(14, 284) XOR 9
+   CASE "v": joy1emu = joy1emu XOR 8: PSET (16, 284), POINT(16, 284) XOR 9
+   CASE "s": save
+   CASE CHR$(0) + "H": joy1emu = joy1emu XOR 16: PSET (10, 282), POINT(10, 282) XOR 9
+   CASE CHR$(0) + "P": joy1emu = joy1emu XOR 32: PSET (10, 284), POINT(10, 284) XOR 9
+   CASE CHR$(0) + "K": joy1emu = joy1emu XOR 64: PSET (9, 283), POINT(9, 283) XOR 9
+   CASE CHR$(0) + "M": joy1emu = joy1emu XOR 128: PSET (11, 283), POINT(11, 283) XOR 9
    CASE "q": CLOSE : CLOSE : CLOSE : END
 END SELECT
-IF pc = bpoint THEN ut = 1
 
+'DO WHILE INKEY$ = "": LOOP
+'DO WHILE INKEY$ = "": LOOP
+'DO WHILE INKEY$ = "": LOOP
+IF pc = bpoint THEN ut = 1
+'patterntables
 'o$ = CHR$(pc \ 256)'High byte pc
 'PUT #9, , o$
 'o$ = CHR$(pc AND 255)'Low byte pc
@@ -718,10 +785,13 @@ LOOP
 END SUB
 
 FUNCTION filerequest$
+' FileRequester 1.10 - New features : PageUp and PageDown can now be
+' used.
+' This is the NEW version.
 DIM FileName$(255)
 OPEN "uness.cfg" FOR INPUT AS #10
 INPUT #10, path$
-CLOSE
+CLOSE #10
 Listing$ = "*.nes"
 Relist:
 LET chc = 1
@@ -754,12 +824,26 @@ k$ = INKEY$
 SELECT CASE k$
  CASE CHR$(0) + "H": GOSUB MoveCursorUpFR
  CASE CHR$(0) + "P": GOSUB MoveCursorDownFR
+ CASE CHR$(0) + "Q": GOSUB PageDownFR
+ CASE CHR$(0) + "I": GOSUB PageUpFR
  CASE "": LET EscPressed = 1: LET KeyBoardCommandsUpdated = 0: GOSUB DrawFileRequester: LET FileRequesterStatus = 1: filerequester$ = "_NoFile": GOTO EndThisSub
 END SELECT
 IF k$ > "" THEN
  IF ASC(k$) = 13 THEN LET EnterPressed = 1: LET KeyBoardCommandsUpdated = 0: LET FileRequesterStatus = 0: GOSUB DrawFileRequester: LET ChosenFile$ = path$ + FileName$(chc + page): filerequest$ = ChosenFile$: GOTO EndThisSub
 END IF
 LOOP
+'
+PageUpFR:
+IF chc + page - 18 < 0 THEN RETURN
+LET page = page - 18
+GOSUB DrawFileRequester
+RETURN
+'
+PageDownFR:
+IF FileName$(chc + page + 18) = "" THEN RETURN
+LET page = page + 18
+GOSUB DrawFileRequester
+RETURN
 '
 MoveCursorUpFR:
 IF chc - 1 = 0 AND page = 0 THEN RETURN
@@ -895,6 +979,8 @@ PUT #4, 1, bytes$
 GET #1, 5, byte$
 bytes$ = ""
 prgs = ASC(byte$)
+GET #1, 7, byte$
+mirroring = ASC(byte$) AND 1
 bytes$ = STRING$(16384, " ")
 IF prgs = 1 THEN
    GET #1, 17, bytes$             'Plocka ett prg-block.
@@ -941,18 +1027,76 @@ brk = a
 byte$ = " "
 COLOR 13
 hagla 306, 1, "mapper:"
-hagla 295, 9, "prg banks:"
-hagla 295, 17, "chr banks:"
-hagla 280, 25, "reset vector:"
-hagla 292, 33, "nmi vector:"
-hagla 290, 41, "brk vector:"
+hagla 297, 9, "mirroring:"
+hagla 295, 17, "prg banks:"
+hagla 295, 25, "chr banks:"
+hagla 280, 33, "reset vector:"
+hagla 292, 41, "nmi vector:"
+hagla 290, 49, "brk vector:"
 COLOR 11
 hagla 340, 1, "$0"
-hagla 340, 9, "$" + LCASE$(HEX$(prgs))
-hagla 340, 17, "$1"
-hagla 340, 25, "$" + LCASE$(HEX$(pc - 1))
-hagla 340, 33, "$" + LCASE$(HEX$(nmi))
-hagla 340, 41, "$" + LCASE$(HEX$(brk))
+IF mirroring = 0 THEN
+   hagla 340, 9, "horizontal"
+ELSE
+   hagla 340, 9, "vertical"
+END IF
+hagla 340, 17, "$" + LCASE$(HEX$(prgs))
+hagla 340, 25, "$1"
+hagla 340, 33, "$" + LCASE$(HEX$(pc - 1))
+hagla 340, 41, "$" + LCASE$(HEX$(nmi))
+hagla 340, 49, "$" + LCASE$(HEX$(brk))
+
+'Palette
+FOR o = 0 TO 48 STEP 16
+   pal(0 + o, 0) = 47
+   pal(0 + o, 1) = 47
+   pal(0 + o, 2) = 47
+   pal(1 + o, 0) = 0
+   pal(1 + o, 1) = 29
+   pal(1 + o, 2) = 60
+   pal(2 + o, 0) = 8
+   pal(2 + o, 1) = 14
+   pal(2 + o, 2) = 60
+   pal(3 + o, 0) = 33
+   pal(3 + o, 1) = 0
+   pal(3 + o, 2) = 62
+   pal(4 + o, 0) = 47
+   pal(4 + o, 1) = 0
+   pal(4 + o, 2) = 47
+   pal(5 + o, 0) = 58
+   pal(5 + o, 1) = 0
+   pal(5 + o, 2) = 23
+   pal(6 + o, 0) = 56
+   pal(6 + o, 1) = 10
+   pal(6 + o, 2) = 0
+   pal(7 + o, 0) = 52
+   pal(7 + o, 1) = 19
+   pal(7 + o, 2) = 2
+   pal(8 + o, 0) = 35
+   pal(8 + o, 1) = 29
+   pal(8 + o, 2) = 0
+   pal(9 + o, 0) = 0
+   pal(9 + o, 1) = 39
+   pal(9 + o, 2) = 0
+   pal(10 + o, 0) = 0
+   pal(10 + o, 1) = 43
+   pal(10 + o, 2) = 0
+   pal(11 + o, 0) = 0
+   pal(11 + o, 1) = 37
+   pal(11 + o, 2) = 14
+   pal(12 + o, 0) = 0
+   pal(12 + o, 1) = 33
+   pal(12 + o, 2) = 35
+NEXT o
+FOR b = 16 TO 48 STEP 16
+   FOR o = 0 TO 15
+      pal(b + o, 0) = pal(o, 0)
+      pal(b + o, 1) = pal(o, 1)
+      pal(b + o, 2) = pal(o, 2)
+   NEXT o
+NEXT b
+
+
 END SUB
 
 DEFSNG C, R
@@ -1021,7 +1165,6 @@ putbyte b%, typ
 reg.s = reg.s AND 125
 IF b% = 0 THEN reg.s = reg.s OR 2
 IF b% > 127 THEN reg.s = reg.s OR 128
-cycle cy
 END SUB
 
 DEFINT A
@@ -1030,10 +1173,7 @@ SUB op.bcc
 a = getbyte
 IF a > 127 THEN a = a - 256
 IF (reg.s AND 1) = 0 THEN pc = pc + a
-cycle 2                                'OBS! Konstig.
-
-
-
+s = s + 2                             'OBS! Konstig.
 END SUB
 
 SUB op.bcs
@@ -1041,7 +1181,7 @@ SUB op.bcs
 a = getbyte
 IF a > 127 THEN a = a - 256
 IF (reg.s AND 1) THEN pc = pc + a
-cycle 2                                'OBS! Konstig.
+s = s + 2                             'OBS! Konstig.
 END SUB
 
 SUB op.beq
@@ -1049,7 +1189,7 @@ SUB op.beq
 a = getbyte
 IF a > 127 THEN a = a - 256
 IF (reg.s AND 2) THEN pc = pc + a
-cycle 2                                'OBS! Konstig.
+s = s + 2                             'OBS! Konstig.
 END SUB
 
 DEFINT B
@@ -1072,7 +1212,7 @@ SUB op.bmi
 a = getbyte
 IF a > 127 THEN a = a - 256
 IF (reg.s AND 128) THEN pc = pc + a
-cycle 2                                   'OBS!
+s = s + 2                                'OBS!
 END SUB
 
 SUB op.bne
@@ -1080,7 +1220,7 @@ SUB op.bne
 a = getbyte
 IF a > 127 THEN a = a - 256
 IF (reg.s AND 2) = 0 THEN pc = pc + a
-cycle 2                                'OBS!
+s = s + 2                             'OBS!
 END SUB
 
 SUB op.bpl
@@ -1088,7 +1228,7 @@ SUB op.bpl
 a = getbyte
 IF a > 127 THEN a = a - 256
 IF (reg.s AND 128) = 0 THEN pc = pc + a
-cycle 2                                   'OBS!
+s = s + 2                                'OBS!
 END SUB
 
 DEFSNG A
@@ -1112,7 +1252,7 @@ SUB op.bvc
 a = getbyte
 IF a > 127 THEN a = a - 256
 IF (reg.s AND 1) = 0 THEN pc = pc + a
-cycle 2                                'OBS! Konstig.
+s = s + 2                             'OBS! Konstig.
 END SUB
 
 SUB op.bvs
@@ -1120,32 +1260,32 @@ SUB op.bvs
 a = getbyte
 IF a > 127 THEN a = a - 256
 IF (reg.s AND 1) THEN pc = pc + a
-cycle 2                                'OBS! Konstig.
+s = s + 2                             'OBS! Konstig.
 END SUB
 
 DEFSNG A
 SUB op.clc
 'CLC: Rensa carry-flagen...
 reg.s = reg.s AND 254
-cycle 2
+s = s + 2
 END SUB
 
 SUB op.cld
 'CLD: Rensa Decimal-flagen.
 reg.s = reg.s AND 247
-cycle 2
+s = s + 2
 END SUB
 
 SUB op.cli
 'CLI: Rensa Interrupt disable-flagen.
 reg.s = reg.s AND 251
-cycle 2
+s = s + 2
 END SUB
 
 SUB op.clv
 'CLV: Rensa Owerflow-flagen.
 reg.s = reg.s AND 191
-cycle 2
+s = s + 2
 END SUB
 
 SUB op.cmp (typ)
@@ -1185,7 +1325,6 @@ reg.s = reg.s AND 125
 IF b = 0 THEN reg.s = reg.s OR 2
 IF b > 127 THEN reg.s = reg.s OR 128
 putbyte b, typ
-cycle cy
 END SUB
 
 DEFSNG B
@@ -1196,7 +1335,7 @@ reg.s = reg.s AND 125
 IF reg.x = 0 THEN reg.s = reg.s OR 2
 IF reg.x = -1 THEN reg.x = 255
 IF reg.x > 127 THEN reg.s = reg.s OR 128
-cycle 2
+s = s + 2
 END SUB
 
 SUB op.dey
@@ -1206,7 +1345,7 @@ reg.s = reg.s AND 125
 IF reg.y = 0 THEN reg.s = reg.s OR 2                 'Z?
 IF reg.y = -1 THEN reg.y = 255
 IF reg.y > 127 THEN reg.s = reg.s OR 128  'S?
-cycle 2
+s = s + 2
 END SUB
 
 DEFINT B
@@ -1227,7 +1366,6 @@ reg.s = reg.s AND 125
 IF b > 255 THEN b = 0: reg.s = reg.s OR 2
 IF b > 127 THEN reg.s = reg.s OR 128
 putbyte b, typ
-cycle cy
 END SUB
 
 DEFSNG B
@@ -1240,7 +1378,7 @@ reg.s = reg.s AND 125
 IF reg.x = 0 THEN reg.s = reg.s OR 2
 IF reg.x > 127 THEN reg.s = reg.s OR 128
 
-cycle 2
+s = s + 2
 END SUB
 
 SUB op.iny
@@ -1250,7 +1388,7 @@ IF reg.y = 256 THEN reg.y = 0
 reg.s = reg.s AND 125
 IF reg.y = 0 THEN reg.s = reg.s OR 2
 IF reg.y > 127 THEN reg.s = reg.s OR 128
-cycle 2
+s = s + 2
 END SUB
 
 SUB op.jmp (typ)
@@ -1260,13 +1398,13 @@ SUB op.jmp (typ)
 SELECT CASE typ
    CASE 1                          'Direkt. Tv† operander.
       pc = abso
-      cycle 3
+      s = s + 3
 CASE 2                             'Indirekt. Tv† operander.
       b = abso
       a = anybyte(b)
       b = anybyte(b + 1)
       pc = a + b * 256
-      cycle 5
+      s = s + 5
 END SELECT
 END SUB
 
@@ -1278,7 +1416,7 @@ pc = pc - 1
 push ((pc AND 65280) / 256)
 push (pc AND 255)
 pc = a + b * 256
-cycle 6
+s = s + 6
 END SUB
 
 SUB op.lda (typ)
@@ -1287,8 +1425,6 @@ reg.a = anybyte(typ)
 reg.s = reg.s AND 125
 IF reg.a = 0 THEN reg.s = reg.s OR 2  'Z?
 IF reg.a > 127 THEN reg.s = reg.s OR 128'S?
-cycle cy
-
 END SUB
 
 SUB op.ldx (typ)
@@ -1296,7 +1432,6 @@ reg.x = anybyte(typ)
 reg.s = reg.s AND 125
 IF reg.x = 0 THEN reg.s = reg.s OR 2
 IF reg.x > 127 THEN reg.s = reg.s OR 128
-cycle cy
 END SUB
 
 SUB op.ldy (typ)
@@ -1305,7 +1440,6 @@ reg.y = anybyte(typ)
 reg.s = reg.s AND 125
 IF reg.y = 0 THEN reg.s = reg.s OR 2
 IF reg.y > 127 THEN reg.s = reg.s OR 128
-cycle cy
 END SUB
 
 SUB op.lsr (typ)
@@ -1317,7 +1451,6 @@ b% = b% \ 2
 putbyte b%, typ
 reg.s = reg.s AND 125
 IF b% = 0 THEN reg.s = reg.s OR 2
-cycle cy
 END SUB
 
 DEFINT B
@@ -1334,30 +1467,30 @@ DEFSNG B
 SUB op.pha
 'PHA: L„gg Ackumulatorn p† stacken...
 push reg.a 'Se ovan...
-cycle 3
+s = s + 3
 END SUB
 
 SUB op.php
 'PHP: L„gg statusregistret p† stacken(!)
 push reg.s
-cycle 3
+s = s + 3
 END SUB
 
 SUB op.pla
 'PLA: Stackens ”versta byte l„ggs i Ackumulatorn.
 reg.a = pop
+reg.s = reg.s AND 125
 IF reg.a = 0 THEN reg.s = reg.s OR 2
 IF reg.a > 127 THEN reg.s = reg.s OR 128
 'OBS! Byten som l„ses in ligger fortfarande kvar i stacken.
 'Detta leder till h”gre hastighet, men kanske ocks† haveri. Troligtvis inte.
-
-cycle 4
+s = s + 4
 END SUB
 
 SUB op.plp
 'PLP: Plocka status-registret fr†n stacken.
 reg.s = pop
-cycle 4
+s = s + 4
 END SUB
 
 DEFINT B
@@ -1406,27 +1539,11 @@ SUB op.rts
 a = pop              'F”rst den l†ga byten
 b = pop              'Sedan den h”ga :)
 pc = a + b * 256 + 1
-cycle 6
+s = s + 6
 END SUB
 
 DEFINT A
 SUB op.sbc (typ)
-'SBC: Ackumulatorn - operanden/minnesbyten - C xor 1
-'a = anybyte(typ)
-'IF (a AND 128) THEN a = a - 256
-'IF (reg.a AND 128) THEN reg.a = reg.a - 256
-'reg.a = (reg.a - a) - ((reg.s AND 1) XOR 1)
-'reg.s = reg.s AND 60
-'IF reg.a < -128 OR reg.a > 127 THEN reg.s = reg.s OR 64
-'IF a >= 0 THEN
-'   IF reg.a >= 0 THEN IF (reg.a + a + ((reg.s AND 1) XOR 1)) >= 0 THEN reg.s = reg.s OR 1
-'ELSE
-'   IF reg.a >= 0 THEN IF (reg.a + a + ((reg.s AND 1) XOR 1)) < 0 THEN reg.s = reg.s OR 1
-'END IF
-'IF reg.a < 0 THEN reg.a = reg.a + 256
-'IF reg.a = 0 THEN reg.s = reg.s OR 2
-''IF reg.a > 255 THEN PRINT "Ufo!": reg.a = reg.a - 256
-'IF reg.a > 127 THEN reg.s = reg.s OR 128
 a = anybyte(typ)
 cc = (reg.s AND 1) XOR 1
 reg.s = reg.s AND 60
@@ -1437,9 +1554,12 @@ IF co > 127 THEN co = co - 256
 ca = ca - co - cc
 IF ca < -128 OR ca > 127 THEN reg.s = reg.s OR 64
 IF co > 0 THEN IF ca >= 0 THEN reg.s = reg.s OR 1
-reg.a = reg.a - co - cc
-IF reg.a < 0 THEN reg.a = reg.a + 256
-IF reg.a > 255 THEN reg.s = reg.s OR 1: reg.a = reg.a - 256
+reg.a = reg.a - a - cc
+IF reg.a >= 0 THEN
+   reg.s = reg.s OR 1
+ELSE
+   reg.a = reg.a + 256
+END IF
 IF reg.a = 0 THEN reg.s = reg.s OR 2
 IF reg.a > 127 THEN reg.s = reg.s OR 128
 END SUB
@@ -1448,37 +1568,34 @@ DEFSNG A
 SUB op.sec
 'SEC: S„tt Carry-flagen.
 reg.s = reg.s OR 1
-cycle 2
+s = s + 2
 END SUB
 
 SUB op.sed
 'SED: S„tt Decimal mode-flagen.
 reg.s = reg.s OR 8
-cycle 2
+s = s + 2
 END SUB
 
 SUB op.sei
 'SEI: I-flagen s„tts till 1.
 reg.s = reg.s OR 4
-cycle 2
+s = s + 2
 END SUB
 
 SUB op.sta (typ)
 'STA: Stoppa Ackumulatorn i minnet.
 putbyte reg.a, typ
-cycle cy
 END SUB
 
 SUB op.stx (typ)
 'Stoppa reg.x i minnet...
 putbyte reg.x, typ
-cycle cy
 END SUB
 
 SUB op.sty (typ)
 'STY: Stoppa reg.y i minnet.
 putbyte reg.y, typ
-cycle cy
 END SUB
 
 SUB op.tax
@@ -1487,7 +1604,7 @@ reg.x = reg.a
 reg.s = reg.s AND 125
 IF reg.x = 0 THEN reg.s = reg.s OR 2
 IF reg.x > 127 THEN reg.s = reg.s OR 128
-cycle 2
+s = s + 2
 END SUB
 
 SUB op.tay
@@ -1496,7 +1613,7 @@ reg.y = reg.a
 reg.s = reg.s AND 125
 IF reg.y = 0 THEN reg.s = reg.s OR 2
 IF reg.y > 127 THEN reg.s = reg.s OR 128
-cycle 2
+s = s + 2
 END SUB
 
 DEFSNG C, R
@@ -1506,7 +1623,7 @@ reg.x = reg.sp
 reg.s = reg.s AND 125
 IF reg.x = 0 THEN reg.s = reg.s OR 2
 IF reg.x > 127 THEN reg.s = reg.s OR 128
-cycle 2
+s = s + 2
 END SUB
 
 DEFINT C, R
@@ -1516,13 +1633,13 @@ reg.a = reg.x
 reg.s = reg.s AND 125
 IF reg.a = 0 THEN reg.s = reg.s OR 2
 IF reg.a > 127 THEN reg.s = reg.s OR 128
-cycle 2
+s = s + 2
 END SUB
 
 SUB op.txs
 'TXS X-registret f”rs ”ver till stackpekaren...
 reg.sp = reg.x
-cycle 2
+s = s + 2
 END SUB
 
 SUB op.tya
@@ -1531,7 +1648,7 @@ reg.a = reg.y
 reg.s = reg.s AND 125
 IF reg.a = 0 THEN reg.s = reg.s OR 2
 IF reg.a > 127 THEN reg.s = reg.s OR 128
-cycle 2
+s = s + 2
 END SUB
 
 SUB patterntables
@@ -1600,28 +1717,40 @@ IF reg.sp < 0 THEN reg.sp = 255
 END SUB
 
 SUB putbyte (byte%, posi)
-byte$ = CHR$(byte%)
 'Kolla om n†gon speciell adress „r „ndrad.
 IF posi >= &H2000 THEN              'Mer „n $1FFF?
    IF posi <= &H2007 THEN           'Mindre „n $2008?
-     
       IF posi = &H2000 THEN ppu1 = byte%
       IF posi = &H2001 THEN ppu2 = byte%
       IF posi = &H2003 THEN sprramposi = byte%
       IF posi = &H2004 THEN
          'LOCATE 10 + sprramposi, 40: PRINT sprramposi; "="; byte%
          sprramposi = sprramposi + 1
-         MID$(sprram$, sprramposi, 1) = byte$
+         MID$(sprram$, sprramposi, 1) = CHR$(byte%)
+      END IF
+      IF posi = &H2005 THEN
+         IF scrollwrite = 1 THEN
+            vscroll = byte%
+            scrollwrite = 0
+         ELSE
+            hscroll = byte%
+            scrollwrite = 1
+         END IF
       END IF
       IF posi = &H2006 THEN         'Žndra adress f”r VRAM-l„sning/skrivning.
          vramposi = (vramposi AND 255) * 256 + byte%
          firstread = 1
       END IF
-      okn = 1
-      IF (ppu1 AND 4) THEN okn = 32
-      IF posi = &H2007 THEN PUT #4, vramposi + 1, byte$: vramposi = vramposi + okn: IF vramposi > 32767 THEN vramposi = vramposi - 32768': BEEP
-      'LOCATE 3, 40: PRINT HEX$(vramposi) + " = " + HEX$(byte%)
-                        'Skriv till VRAM, och ”ka VRAM-"pointern".
+      IF posi = &H2007 THEN        'Skriv till VRAM, och ”ka VRAM-"pointern".
+         okn = 1
+         IF (ppu1 AND 4) THEN okn = 32
+         byte$ = CHR$(byte%)
+         PUT #4, vramposi + 1, byte$
+         vramposi = vramposi + okn
+         IF vramposi > 32767 THEN vramposi = vramposi - 32768
+         'LOCATE 3, 40: PRINT HEX$(vramposi) + " = " + HEX$(byte%)
+                        
+      END IF
       EXIT SUB
    END IF
 END IF
@@ -1632,7 +1761,7 @@ IF posi <= &H4017 THEN
    IF posi = &H4014 THEN
       c = byte% * 256 + 1
       GET #2, c, sprram$
-      cycle 513
+      s = s + 513
    END IF
    IF posi = &H4016 THEN
       IF (byte% AND 1) THEN
@@ -1647,10 +1776,25 @@ IF posi <= &H4017 THEN
 END IF
 END IF
 posi = posi + 1
+byte$ = CHR$(byte%)
 PUT #2, posi, byte$
 'PUT #2, posi + &H800, byte$
 'PUT #2, posi + &H1000, byte$
 'PUT #2, posi + &H1800, byte$
+
+END SUB
+
+SUB save
+OPEN LEFT$(fil$, LEN(fil$) - 4) + ".ust" FOR BINARY AS #14
+o$ = CHR$(reg.a)
+o$ = o$ + CHR$(reg.x)
+o$ = o$ + CHR$(reg.y)
+o$ = o$ + CHR$(reg.s)
+o$ = o$ + CHR$(reg.sp)
+o$ = o$ + CHR$(pc \ 256)
+o$ = o$ + CHR$(pc AND 255)
+PUT #14, , o$
+CLOSE #14
 
 END SUB
 
@@ -1688,6 +1832,35 @@ hagla 608, 416, "s"
 'PRINT
 'DO WHILE INKEY$ = "": LOOP
 SLEEP
+END SUB
+
+SUB vb
+IF vblank = 0 THEN
+   'ut = 1
+   ppustat = ppustat OR 128
+   vblank = 1
+   'ut = 1
+   IF (ppu1 AND 128) THEN
+      
+      s = s + 7
+      'L„gg pc p† stacken.
+      b% = (pc AND 65280) / 256
+      a% = (pc AND 255)
+      push b%
+      push a%
+      push reg.s        'L„gg status p† stacken...
+      reg.s = reg.s OR 4
+      'opcode$ = "vblank: hoppar till " + HEX$(nmi)
+      pc = nmi
+   END IF
+   frame = frame + 1
+   IF frame = skip THEN frame = 0: crappygfxengine 'Draw graphics...
+ELSE
+   s = s + 7
+   ppustat = ppustat AND 63
+   vblank = 0
+   'ut = 0
+END IF
 END SUB
 
 FUNCTION zp
