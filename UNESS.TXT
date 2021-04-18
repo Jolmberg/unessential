@@ -1,56 +1,51 @@
-uNESsential   0.13    
-By Johannes Holmberg  
+License agreement:
+You must not view this file in Notepad. Use Edit.
+If you don't agree you should not use this program.
 
-0. Contents               
-  1........Introduction  
-  2........What's new    
-  3........Instructions  
-  4........Requirements  
-  5........Emulation     
-  6........Misc Stuff    
-  7........Credits       
-  8........Disclaimer    
-  9........More stuff    
+uNESsential   0.14
+By Johannes Holmberg and Bjîrn èstrîm aka _Bnu
+
+0. Contents
+  1........Introduction
+  2........What's new
+  3........Instructions
+  4........Requirements
+  5........Emulation
+  6........Misc Stuff
+  7........Credits
+  8........Disclaimer
+  9........More stuff
                            
 
-1. Introduction                                                  
+1. Introduction
                                                                    
-  uNESsential is a NES emulator.                                   
-  I know exactly what you are thinking:                            
-  "Not another one!"                                               
-  Sorry, but you'll just have to live with it.                     
-  uNESsential however, has little in common with other emulators.  
-  uNESsential is the worst NES emulator ever made!                 
-  It is slow, ugly, quiet and the compatibility level is           
-  lower than you ever imagined possible!                           
-  "So why didn't you make a better emulator?", you're asking.      
-  Well, I tried my best, and even though I'm not the greatest
-  programmer the world has seen, I think the main reason is
-  that I did it in QBasic.
-
+  uNESsential is a NES emulator written in QBasic.
+  It is written by Johannes Holmberg and Bjîrn "_Bnu" èstrîm.
 
 2. What's new                
                                
-  Version 0.13                    
-  - New sprite engine with sprite flipping.
-  - A few more opcodes emulated.
-  - 8x16 sprite support (buggy(?)).
-  - Typos fixed in BMI, INY and JMP opcodes.
-  - Bugs fixed in the following opcodes:
-      ADC, ASL, BIT, BRK, CMP, CPX, CPY, LSR, ROL, ROR and SBC.
-  - Very minor speed increase.
-  - VBlank-waiting-loop skipping.
-  - Sprite DMA register.
-  - Bug in VRAM reading fixed.
-  - Bug in register $2002 fixed.
-  - Breakpoints.
+  Version 0.14
+  - _Bnu of AR/ZD/Emucamp/N'tendo fame has joined the project.
+  - File requester implemented.
+  - Gui is more informative.
+  - Debugger somewhat wrecked. (No opcode displaying)
+  - Amount of stupidity in CPU core reduced. Faster and smaller.
+  - Opcodes LSR and STA(?) fixed unintentionally.
+  - Opcodes ROL and ROR fixed. Stupid error.
+  - Opcodes ADC and SBC fixed.
+  - Better timing.
+  - Something wrecked in the process of reducing stupidity. (Dunno what)
 
 3. Instructions                                                    
                                                                      
   How to use it:                                                     
-  Run the uness.exe file, and type in a filename, preferrably        
-  one of a NES ROM, and the emulator will do its best to run it.     
-                                                                     
+  There are two ways to run uNESsential.
+  Either by typing
+  "uness rom.nes"
+  or by simply typing
+  "uness"
+  which will bring up the file requester.
+
   Joypad Keys:                                                       
   Arrows - Directional pad                                           
   Z      - A                                                         
@@ -65,7 +60,10 @@ By Johannes Holmberg
   P      - Toggle opcode output                                      
   B      - Breakpoint
 
-  Joypad emulation works on a toggle basis. Don't keep the physical  
+  Opcode output is broken as of version 0.14. You can still use the
+  O key to look at the registers though.
+  This will probably be fixed in the next version.
+  Joypad emulation works on a toggle basis. Don't keep the physical
   keys pressed, or you will go deaf.
   To set a breakpoint, press B and then use the keys 1,2,3 and 4 to
   choose a breakpoint and hit enter.
@@ -89,17 +87,16 @@ By Johannes Holmberg
 5. Emulation                                                  
                                                                 
   What it emulates:                                             
-  - Most of the 6502 opcodes                                    
+  - All of the 6502 opcodes (I think).
   - Most of the PPU
-  - Joypad 1                                                    
+  - Joypad 1
                                                                 
   What it will emulate in the future:                           
-  - All 6502 opcodes                                            
   - Attribute tables
   - Scrolling
   - Joypad 2 (Possibly 3 and 4 too)                             
   - Palettes                                                    
-  - Sound (only if I manage to speed up emulation remarkably).  
+  - Sound (only if we manage to speed up emulation remarkably).  
   - Some more mappers.                                          
 
 
@@ -107,31 +104,30 @@ By Johannes Holmberg
 6. Misc.                                                     
                                                                
   Other things you should know:                                
+  
+  If a game seems to get stuck on the title screen.
+  Give it some time, go eat lunch or something.
+  Some games need more than 100 frames to actually
+  get into the game.
 
-  If you are planning on writing your own NES emulator,
-  I can not recommend you to rely on the opcode output         
-  of uNESsential. Many opcodes are probably buggy.                                                          
-                                                               
-  uNESsential does not have a line by line graphics engine,    
-  and it probably never will have, since that almost requires  
-  double buffering or page flipping, which is impossible at    
-  decent speed in QBasic (In VGA).                             
+  I destroyed the opcode outputing because it was coded in a stupid way which
+  slowed down emulation. It will be back in the next version.
 
-  Sprite flipping does not currently work in the y-axis when
-  using 8x16 sprites. I haven't implemented that function,
-  because I don't know of any rom which uses it and therefore
-  it would probably become incredibly buggy...
+  Sprite flipping does not currently work in the y-axis.
+  I don't know of any game which uses it which means that any implementation
+  of it will be terribly buggy.
 
-  I will probably implement palette emulation soon, but
-  the colours will never be correct since I'm using a 16 colour
+  We will probably implement palette emulation soon, but
+  the colours will never be correct since we're using a 16 colour
   video mode.
 
   Compatibility list:
-  I can't be bothered to make a complete list, but here are the highlights:
-  Balloon Fight works perfectly (except scrolling).
-  Every homebrewn rom I've tried works perfectly.
-  Mail me if you find a homebrewn rom which doesn't work.
-
+  As of v0.14 a few games actually work.
+  I don't feel like making a list though.
+  Some games that work are.
+  Balloon Fight, Donkey Kong Junior and Ice Climber.
+  Ice Climber is unplayable due to the lack of scrolling :)
+  
   Why uNESs? The extra 's' is because I don't want people to   
   confuse uNESsential with another emulator called             
   Ultimate NES (uNES).                                         
@@ -145,26 +141,28 @@ By Johannes Holmberg
   - Goroh for taking the time to answer my sprite questions.  
   - Tony Young for creating Junkrom and Mouser.               
   - Chris Covell for making his various NES ROMs.             
-  - _Bnu for getting me started when I knew nothing.          
   - AtLaS for thinking of the name uNESsential.               
-  - AkIlLa^ for pointing out errors and making suggestions.
-  - Whoever wrote the testcart.nes rom.
-  - Probably some more people. Mail me if I forgot you.       
+  - AkIlLa^ for pointing out errors and making suggestions,
+            and implementing the zaniest features in Nes4pc
+            just to allow me to debug my cpu core.
+  - Whoever wrote the cart.nes rom.
+  - Probably some more people. Mail us if we forgot you.       
 
 
 
 8. Disclaimer                                                     
                                                                     
-  Who cares anyway? Let me just say one thing: "It's not my fault!" 
+  Who cares anyway? Let us  just say one thing: "It's not our fault!" 
 
 
 
 9. More stuff                                           
                                                           
-  Feel free to mail me at bapple@home.se.                 
+  Feel free to mail me (Johannes) at bapple@home.se,
+  or Bjîrn at klass9.v@jokkmokk.se.
   The latest version of uNESsential can be downloaded at: 
   http://www.emucamp.com/unessential/                     
-  Copyright - Johannes Holmberg 1998                      
+  Copyright - Johannes Holmberg and Bjîrn èstrîm 1998
 
 
 "Oh no, run!" -R.W.
