@@ -1,3 +1,11 @@
+DECLARE FUNCTION zpx! ()
+DECLARE FUNCTION zpy! ()
+DECLARE FUNCTION abso! ()
+DECLARE FUNCTION absx! ()
+DECLARE FUNCTION absy! ()
+DECLARE FUNCTION pre! ()
+DECLARE FUNCTION post! ()
+DECLARE FUNCTION zp! ()
 DECLARE FUNCTION breakpoint! ()
 DECLARE SUB op.bvs ()
 DECLARE SUB op.bvc ()
@@ -75,29 +83,46 @@ SCREEN 12
 loadfont       'Ladda in fonten...
 DIM SHARED reg.a, reg.x, reg.y, reg.s, pc, reg.sp, fil$, byte$, opcode$
 DIM SHARED cycles, nmi, ut, bokstav(52, 5), bytes, rabies, vramposi, vblank
-DIM SHARED ppu1, brk, sprramposi, sprram$, ppustat, sprite0(1), lines, cyc
+DIM SHARED ppu1, Brk, sprramposi, sprram$, ppustat, sprite0(1), lines, cyc
 DIM SHARED joy1emu, joy1reads, joy1reset, ppu2, firstread, bpoint
 firstread = 1
 sprram$ = STRING$(256, CHR$(0))
-'uNESsential Nintendo-emulator. Version 0.125
+'uNESsential Nintendo-emulator. Version 0.130
 '
 'Nyheter:
-' ADCarna och SBCarna fixade (tror jag...).
-' LSR, ASL och ROR fixade. Satte aldrig Carry-flagen till noll:
-' Game Genie (d) och Lode Runner-titelbilden perfekta, Nesa. Žntligen!
-' SMB (lite)!
-' BIT-opcoden fixad...
-' 2 sista ROLarna implementerade.
-' Post-Indexed CMP och Pre-Indexed AND implementerade:
-' Balloon Fight och 1942-titelbilderna...
-' CMP fixad. Titelbilder som fungerar b„ttre tack vare det:
-' Mario Bros, Donkey Kong 3, Tennis, Pinball, Galaga(?),
-' Stackup, Gyromite. Joust-titelbilden funkar perfekt! (utom start...)
-' Joypad-bilden „r fixad.
-' VBlank-biten s„tts till noll efter l„sning.
-' Breakpoints.
-' VRAM-l„sning emuleras b„ttre. (Skr„p-byten)
-' Sprite och Background visibility.
+' Uppsnabbat lite med INTar (inte i release...)
+' Helt ny sprite-motor. Flipping. (Bara i x-led p† 8x16-sprites).
+'    Balloon Fight och Testcart snyggare.
+' De tv† sista ADCarna implementerade:
+'    Balloon Fight g†r att spela.
+' All CPU-kod ordnad. (Var ful).
+' 8x16-sprites-koden „ndrar (kanske fusk):
+'   Testcart fungerar perfekt.
+' BMI fixad. Klantfel, OR istf. AND.
+' Indirekt JMP fixad (felskrivning):
+'   Hogan's Alley, Wild Gunman.
+' BRK fixad. Idiotfel.
+' INY fixad. (felskrivning).
+' SBC fixad igen: F”rs„mring(!?).
+' ADC fixad igen:
+'   Tennis, Mario Bros, Popeye mm.
+' SBCarna och ADCarna fixade. Gjorde helt fel med flagarna.
+' 8x16-sprites. Buggigt utav helvete f”rmodligen.
+' Sprite-rutinen fixad. Klantfel vid patterntable-valet.
+' LSRarna fixade ytterligare.
+' De tv† sista LSRarna:
+'   Ice Hockey lite b„ttre.
+' De tv† sista ORAarna.
+' De tv† sista ASLarna:
+'   Balloon Fight Mode C lite b„ttre.
+' N†got snabbare grafik och CPU.
+' Sprite-DMA:
+'   Massor av spel fixade.
+' LSR och ROL fixade „nnu mer:
+'   Balloon Fight, Pinball, Thexder, Millipede och Space Invaders startar.
+'   Titelbilder: Mario Bros, Stackup, Gyromite, Ice Climber/Hockey, Popeye
+'   Duck Hunt, Hogan's Alley, Base Ball, Clu Clu Land, SMB(?), Donkey Kong()
+'   Donkey Kong Jr.
 '
 'Allm„n info:
 'RAM-minne emuleras genom filen MEMORY.NIN.
@@ -145,18 +170,47 @@ LINE (459, 407)-(639, 407), 8, , 21845
 patterntables
 emulera                            'B”rja emulera!
 
-FUNCTION anybyte% (posi)
-GET #2, posi, byte$
-anybyte = ASC(byte$)
+FUNCTION abso
+a = getbyte
+b = getbyte
+a = a + b * 256
+opcode$ = opcode$ + "$" + HEX$(a)
+abso = a
 
-IF posi > &H2000 THEN
-IF posi < &H2009 THEN
+END FUNCTION
+
+FUNCTION absx
+a = getbyte
+b = getbyte
+a = a + b * 256
+opcode$ = opcode$ + "$" + HEX$(a) + ", X"
+a = a + reg.x
+IF (a AND 65536) THEN a = a AND 65535
+absx = a
+END FUNCTION
+
+FUNCTION absy
+a = getbyte
+b = getbyte
+a = a + b * 256
+opcode$ = opcode$ + "$" + HEX$(a) + ", Y"
+a = a + reg.y
+IF (a AND 65536) THEN a = a AND 65535
+absy = a
+END FUNCTION
+
+FUNCTION anybyte% (posi)
+GET #2, posi + 1, byte$
+anybyte% = ASC(byte$)
+
+IF posi >= &H2000 THEN
+IF posi <= &H2007 THEN
 
 'IF posi = &H2001 THEN anybyte% = ppu1
 'IF posi = &H2002 THEN anybyte% = ppu2
-IF posi = &H2003 THEN anybyte% = ppustat: ppustat = ppustat AND 127
-IF posi = &H2005 THEN anybyte% = ASC(MID$(sprram$, sprramposi + 1))
-IF posi = &H2008 THEN
+IF posi = &H2002 THEN anybyte% = ppustat: ppustat = ppustat AND 127
+IF posi = &H2004 THEN anybyte% = ASC(MID$(sprram$, sprramposi + 1))
+IF posi = &H2007 THEN
    okn = 1
    IF (ppu1 AND 4) THEN okn = 32
    GET #4, vramposi + 1, byte$: anybyte% = ASC(byte$)
@@ -169,10 +223,10 @@ END IF
 END IF
 END IF
 
-IF posi >= &H4001 THEN
-IF posi <= &H4018 THEN
+IF posi >= &H4000 THEN
+IF posi <= &H4017 THEN
 
-   IF posi = &H4017 THEN
+   IF posi = &H4016 THEN
       IF (joy1emu AND joy1reads) = joy1reads THEN anybyte% = 1
       joy1reads = joy1reads * 2
       IF joy1reads > 256 THEN joy1reads = 256
@@ -216,6 +270,7 @@ hagla 310, 10, LCASE$(HEX$(bp4 \ 4096) + HEX$(bp3 \ 256) + HEX$(bp2 \ 16) + HEX$
 RETURN
 END FUNCTION
 
+DEFINT A-B, P, X-Y
 SUB crappygfxengine 'F”rmodligen den s„msta grafikmotor som n†gonsin skapats...
 'Bakgrund.
 'IF (ppu2 AND 8) THEN
@@ -240,30 +295,85 @@ FOR c = 1 TO 960
 NEXT c
 'END IF
 'Sprites.
-IF (ppu2 AND 16) THEN
-okning = (ppu AND 8) * 16
-FOR c = 1 TO 256 STEP 4
-   x = ASC(MID$(sprram$, c + 3))
-   y = ASC(MID$(sprram$, c))
-   a = okning + ((ASC(MID$(sprram$, c + 1, 1)) AND 15) * 8)
-   b = 300 + ((ASC(MID$(sprram$, c + 1, 1)) AND 240) / 2)
-   IF y < &HF0 THEN
-   FOR cy = 0 TO 7
-      FOR cx = 0 TO 7
-         IF POINT(a + cx, b + cy) > 0 THEN PSET (x + cx, y + cy + 1), POINT(a + cx, b + cy)
-      NEXT cx
-   NEXT cy
-   END IF
-NEXT c
+'IF (ppu2 AND 16) THEN
+asize = (ppu1 AND 32)
+okning = (ppu1 AND 8) * 16
+IF asize = 0 THEN
+   FOR c = 1 TO 253 STEP 4
+      y = ASC(MID$(sprram$, c))
+      IF y < &HF0 THEN
+         x = ASC(MID$(sprram$, c + 3))
+         attr = ASC(MID$(sprram$, c + 2))
+         IF (attr AND 128) THEN
+            sy = 7: sys = -1
+         ELSE
+            sy = 0: sys = 1
+         END IF
+         IF (attr AND 64) THEN
+            sx = 7: sxs = -1
+         ELSE
+            sx = 0: sxs = 1
+         END IF
+         p = (attr AND 32)
+         a = okning + ((ASC(MID$(sprram$, c + 1, 1)) AND 15) * 8)
+         b = 300 + ((ASC(MID$(sprram$, c + 1, 1)) AND 240) \ 2)
+         FOR cy = sy TO (sy XOR 7) STEP sys
+            FOR cx = sx TO (sx XOR 7) STEP sxs
+               IF p = 0 THEN IF POINT(a + cx, b + cy) > 0 THEN PSET (x + ax, y + bx + 1), POINT(a + cx, b + cy)
+               IF p = 32 THEN IF POINT(x + ax, y + bx + 1) = 0 THEN PSET (x + ax, y + bx + 1), POINT(a + cx, b + cy)
+               ax = ax + 1
+            NEXT cx
+            bx = bx + 1: ax = 0
+         NEXT cy
+         ax = 0: bx = 0
+      END IF
+   NEXT c
 END IF
+IF asize = 32 THEN
+   FOR c = 1 TO 253 STEP 4
+      y = ASC(MID$(sprram$, c))
+      IF y < &HF0 THEN
+         x = ASC(MID$(sprram$, c + 3))
+         attr = ASC(MID$(sprram$, c + 2))
+         IF (attr AND 128) THEN
+            sy = 7: sys = -1
+         ELSE
+            sy = 0: sys = 1
+         END IF
+         p = (attr AND 32)
+         IF (attr AND 64) = 0 THEN
+            a = okning + ((ASC(MID$(sprram$, c + 1, 1)) AND 15) * 8)
+            b = 300 + ((ASC(MID$(sprram$, c + 1, 1)) AND 240) \ 2)
+            FOR spr = 8 TO 0 STEP -8
+            FOR cy = sy TO (sy XOR 7) STEP sys
+               FOR cx = 0 TO 7
+                  IF p = 0 THEN IF POINT(a + cx, b + cy) > 0 THEN PSET (x + ax, y + bx + 1 + spr), POINT(a + cx, b + cy)
+                  IF p = 32 THEN IF POINT(x + ax, y + bx + 1 + spr) = 0 THEN PSET (x + ax, y + bx + 1 + spr), POINT(a + cx, b + cy)
+                  'IF POINT(a + cx, b + cy) > 0 THEN PSET (x + ax, y + bx + 1 + spr), POINT(a + cx, b + cy)
+                  ax = ax + 1
+               NEXT cx
+               bx = bx + 1: ax = 0
+            NEXT cy
+            ax = 0: bx = 0
+            a = a - 8
+            IF a = 120 OR a = -8 THEN a = a + 128: b = b - 8
+            NEXT spr
+         END IF
+      END IF
+   NEXT c
+END IF
+
+
+
 END SUB
 
+DEFSNG A-B, P, X-Y
 SUB cycle (r)
 cycles = cycles + r
 cyc = cycles
 IF vblank = 1 THEN
 IF cycles >= 2599 THEN
-   BEEP: BEEP: BEEP: BEEP: BEEP: BEEP
+   'BEEP: BEEP: BEEP: BEEP: BEEP: BEEP
    cycles = 7
    ppustat = ppustat AND 127
    vblank = 0
@@ -280,7 +390,7 @@ IF cycles >= 27007 THEN
    vblank = 1
    'ut = 1
    IF (ppu1 AND 128) = 128 THEN
-      BEEP: BEEP: BEEP: BEEP: BEEP: BEEP
+      'BEEP: BEEP: BEEP: BEEP: BEEP: BEEP
       cycles = 7
       'L„gg pc p† stacken.
       b% = (pc AND 65280) / 256
@@ -305,6 +415,25 @@ bytes = ASC(byte$)
 'OBS! B”r sorteras i ordningen: vanligast f”rst - ovanligast sist...
 
 SELECT CASE ASC(byte$)
+  
+   CASE &HA9: op.lda (1)
+   CASE &HA5: op.lda (2)
+   CASE &HB5: op.lda (3)
+   CASE &HAD: op.lda (4)
+   CASE &HBD: op.lda (5)
+   CASE &HB9: op.lda (6)
+   CASE &HA1: op.lda (7)
+   CASE &HB1: op.lda (8)
+
+   CASE &HD0: op.bne
+   CASE &HF0: op.beq
+   CASE &H10: op.bpl
+   CASE &H30: op.bmi
+   CASE &H90: op.bcc
+   CASE &HB0: op.bcs
+   CASE &H50: op.bvc
+   CASE &H70: op.bvs
+
    CASE &HAA: op.tax
    CASE &H8A: op.txa
    CASE &HA8: op.tay
@@ -341,15 +470,6 @@ SELECT CASE ASC(byte$)
    CASE &H94: op.sty (2)
    CASE &H8C: op.sty (3)
   
-   CASE &HA9: op.lda (1)
-   CASE &HA5: op.lda (2)
-   CASE &HB5: op.lda (3)
-   CASE &HAD: op.lda (4)
-   CASE &HBD: op.lda (5)
-   CASE &HB9: op.lda (6)
-   CASE &HA1: op.lda (7)
-   CASE &HB1: op.lda (8)
-
    CASE &HA2: op.ldx (1)
    CASE &HA6: op.ldx (2)
    CASE &HB6: op.ldx (3)
@@ -373,10 +493,14 @@ SELECT CASE ASC(byte$)
    CASE &H4A: op.lsr (1)
    CASE &H46: op.lsr (2)
    CASE &H56: op.lsr (3)
+   CASE &H4E: op.lsr (4)
+   CASE &H5E: op.lsr (5)
 
    CASE &HA: op.asl (1)
    CASE &H6: op.asl (2)
    CASE &H16: op.asl (3)
+   CASE &HE: op.asl (4)
+   CASE &H1E: op.asl (5)
 
    CASE &H29: op.and (1)
    CASE &H25: op.and (2)
@@ -385,6 +509,7 @@ SELECT CASE ASC(byte$)
    CASE &H3D: op.and (5)
    CASE &H39: op.and (6)
    CASE &H21: op.and (7)
+   CASE &H31: op.and (8)
 
    CASE &H9: op.ora (1)
    CASE &H5: op.ora (2)
@@ -392,6 +517,8 @@ SELECT CASE ASC(byte$)
    CASE &HD: op.ora (4)
    CASE &H1D: op.ora (5)
    CASE &H19: op.ora (6)
+   CASE &H1: op.ora (7)
+   CASE &H11: op.ora (8)
 
    CASE &H49: op.eor (1)
    CASE &H45: op.eor (2)
@@ -421,15 +548,6 @@ SELECT CASE ASC(byte$)
    CASE &H58: op.cli
    CASE &HB8: op.clv
 
-   CASE &HD0: op.bne
-   CASE &HF0: op.beq
-   CASE &H10: op.bpl
-   CASE &H30: op.bmi
-   CASE &H90: op.bcc
-   CASE &HB0: op.bcs
-   CASE &H50: op.bvc
-   CASE &H70: op.bvs
-
    CASE &H4C: op.jmp (1)
    CASE &H6C: op.jmp (2)
    CASE &H20: op.jsr
@@ -442,7 +560,7 @@ SELECT CASE ASC(byte$)
    CASE &HCD: op.cmp (4)
    CASE &HDD: op.cmp (5)
    CASE &HD9: op.cmp (6)
-   'H„r ska C1 vara...
+   CASE &HC1: op.cmp (7)
    CASE &HD1: op.cmp (8)
 
    CASE &HE0: op.cpx (1)
@@ -462,7 +580,9 @@ SELECT CASE ASC(byte$)
    CASE &H6D: op.adc (4)
    CASE &H7D: op.adc (5)
    CASE &H79: op.adc (6)
-  
+   CASE &H61: op.adc (7)
+   CASE &H71: op.adc (8)
+
    CASE &HE9: op.sbc (1)
    CASE &HE5: op.sbc (2)
    CASE &HF5: op.sbc (3)
@@ -497,6 +617,7 @@ SELECT CASE INKEY$
    CASE "q": CLOSE : CLOSE : CLOSE : END
 END SELECT
 IF pc = bpoint THEN ut = 1
+
 pc = pc + 1
 
 
@@ -615,7 +736,7 @@ a = ASC(byte$)
 GET #2, 65536, byte$
 b = ASC(byte$)
 a = a + b * 256
-brk = a
+Brk = a
 'PRINT "BRK-Position:"; HEX$(a); " /"; a; "(+1)..."
 
 byte$ = " "
@@ -649,78 +770,89 @@ PUT (460, 392), block, PSET
 LINE (460, 409)-(639, 423), 0, BF
 END SUB
 
+DEFINT A
 SUB op.adc (typ)
 'ADC: L„gg till operanden (minnes-byten) och C-flagen till Ackumulatorn
 SELECT CASE typ
    CASE 1               'Direkt. En operand.
       a = getbyte
-      opcode$ = "ADC #$" + HEX$(a)
+      opcode$ = opcode$ + "#$" + HEX$(a)
       cy = 2
-   CASE 2 TO 3
-      a = getbyte
-      opcode$ = "ADC $" + HEX$(a)
-      IF typ = 3 THEN
-         a = a + reg.x
-         IF a > 255 THEN a = a - 256
-         opcode$ = opcode$ + ", X"
-      END IF
-      cy = 2
-   CASE 4 TO 6
-      a = getbyte
+   CASE 2
       b = getbyte
-      a = a + b * 256
-      opcode$ = "ADC $" + HEX$(a)
-      IF typ = 5 THEN a = a + reg.x: opcode$ = opcode$ + ", X"
-      IF typ = 6 THEN a = a + reg.y: opcode$ = opcode$ + ", Y"
-      IF a > 65535 THEN a = a - 65536
+      opcode$ = opcode$ + "$" + HEX$(a)
+      cy = 3
+   CASE 3
+      b = zpx
       cy = 4
+   CASE 4
+      b = abso
+      cy = 4
+   CASE 5
+      b = absx
+      cy = 4
+   CASE 6
+      b = absy
+      cy = 4
+   CASE 7
+      b = pre
+      cy = 6
+   CASE 8
+      b = post
+      cy = 5
 END SELECT
-IF typ > 1 THEN a = anybyte(a + 1)
+
+IF typ > 1 THEN a = anybyte(b)
 IF (a AND 128) THEN a = a - 256
+IF (reg.a AND 128) THEN reg.a = reg.a - 256
 reg.a = reg.a + a + (reg.s AND 1)
 reg.s = reg.s AND 60
-IF (reg.a > 255) OR (reg.a) < 0 THEN reg.s = reg.s OR 64    'V?
-IF reg.a > 255 THEN reg.a = reg.a - 256: reg.s = reg.s OR 1 'C?
-IF reg.a = 0 THEN reg.s = reg.s OR 2                        'Z?
+IF reg.a > 127 OR reg.a < -128 THEN reg.s = reg.s OR 64  'V?
+IF reg.a >= 0 THEN IF reg.a - a - (reg.s AND 1) < 0 THEN reg.s = reg.s OR 1
+IF a < 0 THEN
+   reg.s = reg.s OR 1
+   IF reg.a < 0 THEN IF reg.a - a - (reg.s AND 1) > 0 THEN reg.s = reg.s XOR 1
+END IF
 IF reg.a < 0 THEN reg.a = reg.a + 256
-IF (reg.a AND 128) THEN reg.s = reg.s OR 128 'S?
+IF reg.a = 0 THEN reg.s = reg.s OR 2                         'Z?
+IF reg.a > 127 THEN reg.s = reg.s OR 128
 cycle cy
+
 END SUB
 
+DEFSNG A
 SUB op.and (typ)
 'AND: ANDa Ackumulatorn med minne/operand.
+opcode$ = "AND "
 SELECT CASE typ
    CASE 1
       r = getbyte
-      opcode$ = "AND #$" + HEX$(r)
+      opcode$ = opcode$ + "#$" + HEX$(r)
       cy = 2
-   CASE 2 TO 3
+   CASE 2
       a = getbyte
-      opcode$ = "AND $" + HEX$(a)
-      IF typ = 3 THEN
-         a = a + reg.x
-         IF a > 255 THEN a = a - 256
-         opcode$ = opcode$ + ", X"
-      END IF
-      cy = typ + 1
-   CASE 4 TO 6
-      a = getbyte
-      b = getbyte
-      a = a + b * 256
-      opcode$ = "AND $" + HEX$(a)
-      IF typ = 5 THEN a = a + reg.x: opcode$ = opcode$ + ", X"
-      IF typ = 6 THEN a = a + reg.y: opcode$ = opcode$ + ", X"
-      IF a > 65535 THEN a = a - 65536
+      opcode$ = opcode$ + "$" + HEX$(a)
+      cy = 3
+   CASE 3
+      a = zpx
+      cy = 4
+   CASE 4
+      a = abso
+      cy = 4
+   CASE 5
+      a = absx
+      cy = 4
+   CASE 6
+      a = absy
       cy = 4
    CASE 7
-      a = getbyte + reg.x
-      opcode$ = "AND ($" + HEX$(a - reg.x) + ", X)"
-      b = anybyte(a + 1)
-      a = anybyte(a + 2)
-      a = a * 256 + b
+      a = pre
       cy = 6
+   CASE 8
+      a = post
+      cy = 5
 END SELECT
-IF typ > 1 THEN r = anybyte(a + 1)
+IF typ > 1 THEN r = anybyte(a)
 reg.a = reg.a AND r
 reg.s = reg.s AND 125
 IF reg.a = 0 THEN reg.s = reg.s OR 2
@@ -731,33 +863,41 @@ END SUB
 SUB op.asl (typ)
 'ASL: Shift Left...
 reg.s = reg.s AND 254
+opcode$ = "ASL"
 SELECT CASE typ
    CASE 1
       reg.a = reg.a * 2
-      IF reg.a > 255 THEN reg.a = reg.a - 256: reg.s = reg.s OR 1
+      IF (reg.a AND 256) THEN reg.a = reg.a - 256: reg.s = reg.s OR 1
       b% = reg.a
-      'Om utanf”r: S„tt c-flagen...
       opcode$ = "ASL"
-      cycle 2
-   CASE 2 TO 3                   'Zero Page (X).
+      cy = 2
+   CASE 2                       'Zero Page (X).
       a = getbyte
-      IF typ = 3 THEN
-         a = a + reg.x
-         IF a > 255 THEN a = a - 256
-      END IF
-      b% = anybyte(a + 1)
-      b% = b% * 2
-      IF b% > 255 THEN b% = b% - 256: reg.s = reg.s OR 1
-      putbyte b%, a + 1
-      opcode$ = "ASL $" + HEX$(a)
-      IF typ = 3 THEN opcode$ = "ASL $" + HEX$(a - reg.x) + ", X"
-      cycle 5
+      opcode$ = opcode$ + "$" + HEX$(a)
+      cy = 5
+   CASE 3
+      a = zpx
+      cy = 5
+   CASE 4
+      a = abso
+      cy = 6
+   CASE 5
+      a = absx
+      cy = 7
 END SELECT
+IF typ > 1 THEN
+   b% = anybyte(a)
+   b% = b% * 2
+   IF (b% AND 256) THEN b% = b% AND 255: reg.s = reg.s OR 1
+   putbyte b%, a
+END IF
 reg.s = reg.s AND 125
 IF b% = 0 THEN reg.s = reg.s OR 2
 IF b% > 127 THEN reg.s = reg.s OR 128
+cycle cy
 END SUB
 
+DEFINT A
 SUB op.bcc
 'BCC: Brancha om c=0...
 a = getbyte
@@ -775,7 +915,7 @@ SUB op.bcs
 a = getbyte
 opcode$ = "BCS $" + HEX$(a)
 IF a > 127 THEN a = a - 256
-IF (reg.s AND 1) = 1 THEN pc = pc + a
+IF (reg.s AND 1) THEN pc = pc + a
 cycle 2                                'OBS! Konstig.
 END SUB
 
@@ -784,25 +924,26 @@ SUB op.beq
 a = getbyte
 opcode$ = "BEQ $" + HEX$(a)
 IF a > 127 THEN a = a - 256
-IF (reg.s AND 2) = 2 THEN pc = pc + a
+IF (reg.s AND 2) THEN pc = pc + a
 cycle 2                                'OBS! Konstig.
 END SUB
 
+DEFINT B
+DEFSNG A
 SUB op.bit (typ)
 'BIT: ANDa minne/operand med ackumulatorn och f”r ”ver bit 7 och 8
 '     till status-registret(!?)
+opcode$ = "BIT "
 SELECT CASE typ
    CASE 1
       a = getbyte
-      b = anybyte(a + 1)
+      opcode$ = opcode$ + "$" + HEX$(a)
       cy = 3
    CASE 2
-      a = getbyte
-      b = getbyte
-      a = a + b * 256
-      b = anybyte(a + 1)
+      a = abso
       cy = 4
 END SELECT
+b = anybyte(a)
 reg.s = reg.s AND 63
 reg.s = (reg.s OR (b AND 192))
 reg.s = reg.s AND 253
@@ -811,12 +952,14 @@ IF a = 0 THEN reg.s = reg.s OR 2
 
 END SUB
 
+DEFINT A
+DEFSNG B
 SUB op.bmi
 'BMI: Brancha om s=1
 a = getbyte
 opcode$ = "BMI $" + HEX$(a)
 IF a > 127 THEN a = a - 256
-IF (reg.s OR 128) = 128 THEN pc = pc + a
+IF (reg.s AND 128) THEN pc = pc + a
 cycle 2                                   'OBS!
 END SUB
 
@@ -831,29 +974,30 @@ END SUB
 
 SUB op.bpl
 'BPL: Brancha om s=0
-IF (reg.s AND 128) = 128 THEN pc = pc + 1: cycle 2: EXIT SUB
 a = getbyte
 IF opcode$ = "LDA $2002" THEN cycles = 27007
 opcode$ = "BPL $" + HEX$(a)
 IF a > 127 THEN a = a - 256
-pc = pc + a
+IF (reg.s AND 128) = 0 THEN pc = pc + a
 cycle 2                                   'OBS!
 END SUB
 
+DEFSNG A
 SUB op.brk
 'BRK: Brk helt enkelt... :(
-   IF (reg.s AND 4) = 0 THEN
+IF (reg.s AND 4) = 0 THEN
    pc = pc + 1
    b% = (pc AND 65280) / 256
    a% = (pc AND 255)
    push b%
    push a%
    push reg.s        'L„gg status p† stacken...
-   pc = brk
-   END IF
+   'pc = brk
+END IF
    opcode$ = "BRK"
 END SUB
 
+DEFINT A
 SUB op.bvc
 'BVC: Brancha om V=0.
 a = getbyte
@@ -868,10 +1012,11 @@ SUB op.bvs
 a = getbyte
 opcode$ = "BVS $" + HEX$(a)
 IF a > 127 THEN a = a - 256
-IF (reg.s AND 1) = 1 THEN pc = pc + a
+IF (reg.s AND 1) THEN pc = pc + a
 cycle 2                                'OBS! Konstig.
 END SUB
 
+DEFSNG A
 SUB op.clc
 'CLC: Rensa carry-flagen...
 reg.s = reg.s AND 254
@@ -902,166 +1047,124 @@ END SUB
 
 SUB op.cmp (typ)
 'CMP J„mf”r operand och reg.a. (reg.a-operand)...
+opcode$ = "CMP "
 SELECT CASE typ
    CASE 1
       r = getbyte
-      opcode$ = "CMP #$" + HEX$(r)
+      opcode$ = opcode$ + "#$" + HEX$(r)
       cy = 2
-   CASE 2 TO 3
+   CASE 2
       a = getbyte
-      opcode$ = "CMP $" + HEX$(a)
-      IF typ = 3 THEN
-         a = a + reg.x
-         opcode$ = opcode$ + ", X"
-         IF a > 255 THEN a = a - 256
-      END IF
-      r = anybyte(a + 1)
-      cy = 1 + typ
-   CASE 4 TO 6
-      a = getbyte
-      b = getbyte
-      a = a + b * 256
-      opcode$ = "CMP $" + HEX$(a)
-      IF typ = 5 THEN
-         a = a + reg.x
-         opcode$ = opcode$ + ", X"
-         IF a > 65535 THEN a = a - 65536
-      END IF
-      IF typ = 6 THEN
-         a = a + reg.y
-         opcode$ = opcode$ + ", Y"
-         IF a > 65535 THEN a = a - 65536
-      END IF
-      r = anybyte(a + 1)
-      cy = 4                        '5:ans † 6:ans „r konstiga...
+      opcode$ = opcode$ + "$" + HEX$(a)
+      cy = 3
+   CASE 3
+      a = zpx
+      cy = 4
+   CASE 4
+      a = abso
+      cy = 4
+   CASE 5
+      a = absx
+      cy = 4
+   CASE 6
+      a = absy
+      cy = 4
    CASE 7
-      a = getbyte
-      b = anybyte(a + 1)
-      a = anybyte(a + 2)
-      a = b + a * 256 + reg.y
-      opcode$ = "CMP ($" + HEX$(a - reg.y) + "), y"
-      IF a > 65535 THEN a = a - 65536
-      r = anybyte(a + 1)
-      cy = 5                        'Obs. Konstig...
+      a = pre
+      cy = 6                        'Obs. Konstig...
+   CASE 8
+      a = post
+      cy = 5
 END SELECT
+IF typ > 1 THEN r = anybyte(a)
 reg.s = reg.s AND 124
 IF r = reg.a THEN reg.s = reg.s OR 3: cycle cy: EXIT SUB
-IF reg.a - r < 0 THEN
-   IF 255 + (reg.a - r) > 127 THEN
-      reg.s = reg.s OR 128
-   ELSE
-      reg.s = reg.s AND 127
-   END IF
-ELSE
-   reg.s = reg.s OR 1
-END IF
+IF ((reg.a - r) AND 128) THEN reg.s = reg.s OR 128
+IF r < reg.a THEN reg.s = reg.s OR 1
 
 cycle cy
 END SUB
 
 SUB op.cpx (typ)
 'CPX: J„mf”r X-registret och minne/operand.
+opcode$ = "CPX "
 SELECT CASE typ
    CASE 1
       r = getbyte
-      opcode$ = "CPX #$" + HEX$(r)
+      opcode$ = opcode$ + "#$" + HEX$(r)
       cy = 2
    CASE 2
       a = getbyte
-      opcode$ = "CPX $" + HEX$(a)
-      r = anybyte(a + 1)
+      opcode$ = opcode$ + "$" + HEX$(a)
       cy = 3
    CASE 3
-      a = getbyte
-      b = getbyte
-      a = a + b * 256
-      opcode$ = "CPX $" + HEX$(a)
-      r = anybyte(a + 1)
+      a = abso
       cy = 4
 END SELECT
+IF typ > 1 THEN r = anybyte(a)
 reg.s = reg.s AND 124
-IF r = reg.x THEN reg.s = reg.s OR 3: EXIT SUB
-IF reg.x - r < 0 THEN
-   IF 255 + (reg.x - r) > 127 THEN
-      reg.s = reg.s OR 128
-   ELSE
-      reg.s = reg.s AND 127
-   END IF
-ELSE
-   reg.s = reg.s OR 1
-END IF
+IF r = reg.x THEN reg.s = reg.s OR 3: cycle cy: EXIT SUB
+IF ((reg.x - r) AND 128) THEN reg.s = reg.s OR 128
+IF r < reg.x THEN reg.s = reg.s OR 1
+
 cycle cy
 
 END SUB
 
 SUB op.cpy (typ)
 'CPY: J„mf”r Y-registret och minne/operand.
+opcode$ = "CPY "
 SELECT CASE typ
    CASE 1
       r = getbyte
-      opcode$ = "CPY #$" + HEX$(r)
+      opcode$ = opcode$ + "#$" + HEX$(r)
       cy = 2
    CASE 2
       a = getbyte
-      opcode$ = "CPY $" + HEX$(a)
-      r = anybyte(a + 1)
+      opcode$ = opcode$ + "$" + HEX$(a)
       cy = 3
    CASE 3
-      a = getbyte
-      b = getbyte
-      a = a + b * 256
-      opcode$ = "CPY $" + HEX$(a)
-      r = anybyte(a + 1)
+      a = abso
       cy = 4
 END SELECT
+IF typ > 1 THEN r = anybyte(a)
 reg.s = reg.s AND 124
-IF r = reg.y THEN reg.s = reg.s OR 3: EXIT SUB
-IF reg.y - r < 0 THEN
-   IF 255 + (reg.y - r) > 127 THEN
-      reg.s = reg.s OR 128
-   ELSE
-      reg.s = reg.s AND 127
-   END IF
-ELSE
-   reg.s = reg.s OR 1
-END IF
+IF r = reg.y THEN reg.s = reg.s OR 3: cycle cy: EXIT SUB
+IF ((reg.y - r) AND 128) THEN reg.s = reg.s OR 128
+IF r < reg.y THEN reg.s = reg.s OR 1
 cycle cy
 END SUB
 
+DEFINT B
 SUB op.dec (typ)
 'DEC: Minska byte i minnet med 1.
+opcode$ = "DEC "
 SELECT CASE typ
-   CASE 1 TO 2
+   CASE 1
       a = getbyte
-      opcode$ = "DEC $" + HEX$(a)
-      IF typ = 2 THEN
-         a = a + reg.x
-         IF a > 255 THEN a = a - 256
-         opcode$ = opcode$ + ", X"
-      END IF
-      cy = 4 + typ
-   CASE 3 TO 4
-      a = getbyte
-      b = getbyte
-      a = a + b * 256
-      opcode$ = "DEC $" + HEX$(a)
-      IF typ = 2 THEN
-         a = a + reg.x
-         IF a > 65535 THEN a = a - 65536
-         opcode$ = opcode$ + ", X"
-      END IF
-      cy = typ + 3
+      opcode$ = opcode$ + "$" + HEX$(a)
+      cy = 5
+   CASE 2
+      a = zpx
+      cy = 6
+   CASE 3
+      a = abso
+      cy = 6
+   CASE 4
+      a = absx
+      cy = 7
 END SELECT
-b = anybyte(a + 1)
+b = anybyte(a)
 b = b - 1
 IF b = -1 THEN b = 255
 reg.s = reg.s AND 125
 IF b = 0 THEN reg.s = reg.s OR 2
 IF b > 127 THEN reg.s = reg.s OR 128
-putbyte INT(b), a + 1
+putbyte INT(b), a
 cycle cy
 END SUB
 
+DEFSNG B
 SUB op.dex
 'DEX: X-registret minskas med 1.
 reg.x = reg.x - 1
@@ -1079,38 +1182,38 @@ reg.y = reg.y - 1
 reg.s = reg.s AND 125
 IF reg.y = 0 THEN reg.s = reg.s OR 2                 'Z?
 IF reg.y = -1 THEN reg.y = 255
-IF reg.y > 127 THEN reg.s = reg.s OR 128'S?
+IF reg.y > 127 THEN reg.s = reg.s OR 128  'S?
 opcode$ = "DEY"
 cycle 2
 END SUB
 
+DEFINT B
 SUB op.eor (typ)
 'EOR: XORa minne/operand med ackumulatorn.
+opcode$ = "EOR "
 SELECT CASE typ
    CASE 1
       b = getbyte
-      opcode$ = "EOR #$" + HEX$(a)
+      opcode$ = opcode$ + "#$" + HEX$(a)
       cy = 2
-   CASE 2 TO 3
+   CASE 2
       a = getbyte
-      opcode$ = "EOR $" + HEX$(a)
-      IF typ = 3 THEN
-         a = a + reg.x
-         IF a > 255 THEN a = a - 256
-         opcode$ = opcode$ + ", X"
-      END IF
-      cy = typ + 1
+      opcode$ = opcode$ + "$" + HEX$(a)
+      cy = 3
+   CASE 3
+      a = zpx
+      cy = 4
    CASE 4 TO 6
-      a = getbyte
-      b = getbyte
-      a = a + b * 256
-      opcode$ = "EOR $" + HEX$(a)
-      IF typ = 5 THEN a = a + reg.x: opcode$ = opcode$ + ", X"
-      IF typ = 6 THEN a = a + reg.y: opcode$ = opcode$ + ", Y"
-      IF a > 65535 THEN a = a - 65536
+      a = abso
+      cy = 4
+   CASE 5
+      a = absx
+      cy = 4
+   CASE 6
+      a = absy
       cy = 4
 END SELECT
-IF typ > 1 THEN b = anybyte(a + 1)
+IF typ > 1 THEN b = anybyte(a)
 reg.a = reg.a XOR b
 reg.s = reg.s AND 125
 IF reg.a = 0 THEN reg.s = reg.s OR 2      'Z?
@@ -1120,37 +1223,32 @@ END SUB
 
 SUB op.inc (typ)
 'INC: ™ka byte i minnet med 1.
+opcode$ = "INC "
 SELECT CASE typ
-   CASE 1 TO 2
+   CASE 1
       a = getbyte
-      opcode$ = "INC $" + HEX$(a)
-      IF typ = 2 THEN
-         a = a + reg.x
-         opcode$ = opcode$ + ", X"
-         IF a > 255 THEN a = a - 256
-      END IF
-      cy = 4 + typ
-   CASE 3 TO 4
-      a = getbyte
-      b = getbyte
-      a = a + b * 256
-      opcode$ = "INC $" + HEX$(a)
-      IF typ = 4 THEN
-         a = a + reg.x
-         opcode$ = opcode$ + ", X"
-         IF a > 65535 THEN a = a - 65536
-      END IF
-      cy = 3 + typ
+      opcode$ = opcode$ + "$" + HEX$(a)
+      cy = 5
+   CASE 2
+      a = zpx
+      cy = 6
+   CASE 3
+      a = abso
+      cy = 6
+   CASE 4
+      a = absx
+      cy = 7
 END SELECT
-b = anybyte(a + 1)
+b = anybyte(a)
 b = b + 1
 reg.s = reg.s AND 125
 IF b > 255 THEN b = 0: reg.s = reg.s OR 2
 IF b > 127 THEN reg.s = reg.s OR 128
-putbyte INT(b), a + 1
+putbyte b, a
 cycle cy
 END SUB
 
+DEFSNG B
 SUB op.inx
 'INX: X-registret ”kas med 1.
 reg.x = reg.x + 1
@@ -1168,11 +1266,9 @@ SUB op.iny
 'INY: Y-registret ”kas med 1.
 reg.y = reg.y + 1
 IF reg.y = 256 THEN reg.y = 0
-
 reg.s = reg.s AND 125
 IF reg.y = 0 THEN reg.s = reg.s OR 2
-IF reg.y > 127 THEN reg. = reg.s OR 128
-
+IF reg.y > 127 THEN reg.s = reg.s OR 128
 opcode$ = "INY"
 cycle 2
 END SUB
@@ -1183,17 +1279,13 @@ SUB op.jmp (typ)
 'Det beror p† att pc ”kas med ett efter varje opcode „nd†... :)
 SELECT CASE typ
    CASE 1                          'Direkt. Tv† operander.
-      b = getbyte
-      a = getbyte
-      pc = b + a * 256
+      pc = abso
       opcode$ = "JMP $" + HEX$(pc)
       cycle 3
 CASE 2                             'Indirekt. Tv† operander.
-      b = getbyte
-      a = gtebyte
-      b = b + a * 256
-      a = anybyte(b + 1)
-      b = anybyte(b + 2)
+      b = abso
+      a = anybyte(b)
+      b = anybyte(b + 1)
       pc = a + b * 256
       opcode$ = "JMP ($" + HEX$(pc) + ")"
       cycle 5
@@ -1214,190 +1306,170 @@ END SUB
 
 SUB op.lda (typ)
 'LDA: Ladda Ackumulatorn med [operand(er)]
-
+opcode$ = "LDA "
 SELECT CASE typ
    CASE 1                          'Direkt. En operand.
       reg.a = getbyte
-      opcode$ = "LDA #$" + HEX$(reg.a)
-      c = 2
-   CASE 2 TO 3                     'Zero Page (x). En operand.
+      opcode$ = opcode$ + "#$" + HEX$(reg.a)
+      cy = 2
+   CASE 2                          'Zero Page (x). En operand.
       a = getbyte
-      opcode$ = "LDA $" + HEX$(a)
-      IF typ = 3 THEN
-         a = a + reg.x
-         opcode$ = opcode$ + ", X"
-         IF a > 255 THEN a = a - 256
-      END IF
-      c = typ + 1
-   CASE 4 TO 6                     'Absolut. Tv† operander.
-      a = getbyte
-      b = getbyte
-      a = a + b * 256
-      opcode$ = "LDA $" + HEX$(a)
-      IF typ = 5 THEN
-         a = a + reg.x
-         opcode$ = opcode$ + ", X"
-         IF a > 65535 THEN a = a - 65536
-        END IF
-      IF typ = 6 THEN
-         a = a + reg.y
-         opcode$ = opcode$ + ", Y"
-         IF a > 65535 THEN a = a - 65536
-      END IF
-      c = 4                                  'OBS! Konstig!
+      opcode$ = opcode$ + "$" + HEX$(a)
+      cy = 3
+   CASE 3
+      a = zpx
+      cy = 4
+   CASE 4                         'Absolut. Tv† operander.
+      a = abso
+      cy = 4
+   CASE 5
+      a = absx
+      cy = 4
+   CASE 6
+      a = absy
+      cy = 4
    CASE 7                          'Pre-indexed...
-      c = getbyte
-      a = c + reg.x
-      IF a > 255 THEN a = a - 256
-      b = anybyte(a + 1)
-      a = anybyte(a + 2)
-      a = b + a * 256
-      opcode$ = "LDA ($" + HEX$(c) + ", X)"
-      c = 6
+      a = pre
+      cy = 6
    CASE 8                          'Post-indexed...
-      c = getbyte
-      a = anybyte(c + 1)
-      b = anybyte(c + 2)
-      a = a + (b * 256) + reg.y
-      IF a > 65535 THEN a = a - 65536
-      opcode$ = "LDA ($" + HEX$(c) + "), Y"
-      c = 5                                  'OBS! Konstig...
+      a = post
+      cy = 5
 END SELECT
-IF typ > 1 THEN reg.a = anybyte(a + 1)     'Stoppa byte i ackumulatorn...
+IF typ > 1 THEN reg.a = anybyte(a)     'Stoppa byte i ackumulatorn...
 reg.s = reg.s AND 125
 IF reg.a = 0 THEN reg.s = reg.s OR 2  'Z?
 IF reg.a > 127 THEN reg.s = reg.s OR 128'S?
-cycle c
+cycle cy
 END SUB
 
 SUB op.ldx (typ)
+opcode$ = "LDX "
 SELECT CASE typ
    CASE 1                          'Direkt. En operand.
       reg.x = getbyte
-      opcode$ = "LDX #$" + HEX$(reg.x)
-      cycle 2
-   CASE 2 TO 3                       'Zero Page (Y)
+      opcode$ = opcode$ + "#$" + HEX$(reg.x)
+      cy = 2
+   CASE 2                            'Zero Page (Y)
       a = getbyte
-      opcode$ = "LDX $" + HEX$(a)
-      IF typ = 3 THEN
-         a = a + reg.y
-         opcode$ = opcode$ + ", Y"
-         IF a > 255 THEN a = a - 256
-      END IF
-      reg.x = anybyte(a + 1)
-      cycle typ + 1
-   CASE 4 TO 5
-      a = getbyte
-      b = getbyte
-      a = a + b * 256
-      opcode$ = "LDX $" + HEX$(a)
-      IF typ = 5 THEN
-         a = a + reg.y
-         opcode$ = opcode$ + ", Y"
-         IF a > 65535 THEN a = a - 65536
-      END IF
-      reg.x = anybyte(a + 1)
-      cycle 4                             'OBS 5:an „r konstig.
+      opcode$ = opcode$ + "$" + HEX$(a)
+      cy = 3
+   CASE 3
+      a = zpy
+      cy = 4
+   CASE 4
+      a = abso
+      cy = 4
+   CASE 5
+      a = absy
+      cy = 4
 END SELECT
+IF typ > 1 THEN reg.x = anybyte(a)
 reg.s = reg.s AND 125
 IF reg.x = 0 THEN reg.s = reg.s OR 2
 IF reg.x > 127 THEN reg.s = reg.s OR 128
+cycle cy
 END SUB
 
 SUB op.ldy (typ)
 'LDY: Stoppa reg.y fullsmockat!
+opcode$ = "LDY "
 SELECT CASE typ
    CASE 1
       reg.y = getbyte
-      opcode$ = "LDY #$" + HEX$(reg.y)
-      cycle 2
-   CASE 2 TO 3
+      opcode$ = opcode$ + "#$" + HEX$(reg.y)
+      cy = 2
+   CASE 2
       a = getbyte
-      opcode$ = "LDY $" + HEX$(a)
-      IF typ = 3 THEN
-         a = a + reg.x
-         opcode$ = opcode$ + ", X"
-         IF a > 255 THEN a = a - 256
-      END IF
-      reg.y = anybyte(a + 1)
-      cycle 2 + typ
-   CASE 4 TO 5
-      a = getbyte
-      b = getbyte
-      a = a + b * 256
-      opcode$ = "LDY $" + HEX$(a)
-      IF typ = 5 THEN
-         a = a + reg.x
-         opcode$ = opcode$ + ", X"
-         IF a > 65535 THEN a = a - 65536
-      END IF
-      reg.y = anybyte(a + 1)
-      cycle 4                             'OBS 5:an „r konstig.
+      opcode$ = opcode$ + "$" + HEX$(a)
+      cy = 4
+   CASE 3
+      a = zpx
+      cy = 5
+   CASE 4
+      a = abso
+      cy = 4
+   CASE 5
+      a = absx
+      cy = 4
 END SELECT
+IF typ > 1 THEN reg.y = anybyte(a)
 reg.s = reg.s AND 125
 IF reg.y = 0 THEN reg.s = reg.s OR 2
 IF reg.y > 127 THEN reg.s = reg.s OR 128
+cycle cy
 END SUB
 
 SUB op.lsr (typ)
 'LSR: Skifta h”ger (Dela med tv†).
 reg.s = reg.s AND 254
+opcode$ = "LSR "
 SELECT CASE typ
    CASE 1                          'Ackumulatorn...
       reg.s = (reg.s OR (reg.a AND 1)) 'Fixa carry.
       reg.a = reg.a \ 2
-      opcode$ = "LSR"
-      cycle 2
-   CASE 2 TO 3                'Zero Page
+      b% = reg.s
+      cy = 2
+   CASE 2                    'Zero Page
       a = getbyte
-      opcode$ = "LSR $" + HEX$(a)
-      IF typ = 3 THEN
-         a = a + reg.x
-         IF a > 255 THEN a = a - 256
-         opcode$ = opcode$ + ", X"
-      END IF
-      b% = anybyte(a + 1)
-      reg.s = (reg.s OR (b% AND 1)) 'Fixa carry.
-      b% = b% \ 2
-      putbyte b%, a + 1
-      cycle 5
+      opcode$ = opcode$ + "$" + HEX$(a)
+      cy = 5
+   CASE 3
+      a = zpx
+      cy = 5
+   CASE 4
+      a = abso
+      cy = 6
+   CASE 5
+      a = absx
+      cy = 7
 END SELECT
-reg.s = reg.s AND 252
-IF reg.a = 0 THEN reg.s = reg.s OR 2
+IF typ > 1 THEN
+   b% = anybyte(a)
+   reg.s = (reg.s OR (b% AND 1)) 'Fixa carry.
+   b% = b% \ 2
+   putbyte b%, a
+END IF
+reg.s = reg.s AND 125
+IF b% = 0 THEN reg.s = reg.s OR 2
 
-
+cycle cy
 END SUB
 
-DEFINT A
+DEFINT B
 SUB op.ora (typ)
 'ORA: ORa Ackumulatorn med operand/minne. Reultat i Ackumulatorn.
+opcode$ = "ORA "
 SELECT CASE typ
    CASE 1
       a = getbyte
       reg.a = reg.a OR a  'ORa den med Ackumulatorn.
-      opcode$ = "ORA #$" + HEX$(a)
+      opcode$ = opcode$ + "#$" + HEX$(a)
       cy = 2
-   CASE 2 TO 3
+   CASE 2
       a = getbyte
-      opcode$ = "ORA $" + HEX$(a)
-      IF typ = 3 THEN
-         a = a + reg.x
-         opcode$ = opcode$ + ", X"
-         IF a > 255 THEN a = a - 256
-      END IF
-      cy = typ + 1
-   CASE 4 TO 6
-      a = getbyte
-      b = getbyte
-      a = a + b * 256
-      opcode$ = "ORA $" + HEX$(a)
-      IF typ = 5 THEN a = a + reg.x: opcode$ = opcode$ + ", X"
-      IF typ = 6 THEN a = a + reg.y: opcode$ = opcode$ + ", Y"
-      IF a > 65535 THEN a = a - 65536
+      opcode$ = opcode$ + "$" + HEX$(a)
+      cy = 3
+   CASE 3
+      a = zpx
       cy = 4
+   CASE 4
+      a = abso
+      cy = 4
+   CASE 5
+      a = absx
+      cy = 4
+   CASE 6
+      a = absy
+      cy = 4
+   CASE 7                          'Pre-indexed...
+      a = pre
+      cy = 6
+   CASE 8                          'Post-indexed...
+      a = post
+      cy = 5                                  'OBS! Konstig...
 END SELECT
 IF typ > 1 THEN
-   b = anybyte(a + 1)
+   b = anybyte(a)
    reg.a = reg.a OR b
 END IF
 reg.s = reg.s AND 125
@@ -1406,7 +1478,7 @@ IF reg.a > 127 THEN reg.s = reg.s OR 128
 cycle cy
 END SUB
 
-DEFSNG A
+DEFSNG B
 SUB op.pha
 'PHA: L„gg Ackumulatorn p† stacken...
 push reg.a 'Se ovan...
@@ -1439,46 +1511,39 @@ opcode$ = "PLP"
 cycle 4
 END SUB
 
+DEFINT B
 SUB op.rol (typ)
 'ROL: Rotera v„nster.
+opcode$ = "ROL "
 SELECT CASE typ
    CASE 1                          'Ackumulatorn.
       reg.a = reg.a * 2
       IF reg.s AND 1 THEN reg.a = reg.a + 1
       IF reg.a < 256 THEN reg.s = reg.s AND 254
       IF reg.a > 255 THEN reg.a = reg.a - 256: reg.s = reg.s OR 1
-      'Om utanf”r: K”r runt med carry-flagen...
-      opcode$ = "ROL"
       b = reg.a
       cy = 2
-   CASE 2 TO 3                     'Zero Page(, X).
+   CASE 2                          'Zero Page(, X).
       a = getbyte
-      opcode$ = "ROL $" + HEX$(a)
-      IF typ = 3 THEN
-         a = a + reg.x
-         opcode$ = opcode$ + ", X"
-         IF a > 255 THEN a = a - 256
-      END IF
-      cy = typ + 3
-   CASE 4 TO 5
-      a = getbyte
-      b = getbyte
-      a = a + b * 256
-      opcode$ = "ROL $" + HEX$(a)
-      IF typ = 5 THEN
-         a = a + reg.x
-         opcode$ = opcode$ + ", X"
-         IF a > 65535 THEN a = a - 65536
-      END IF
-      cy = typ + 2
+      opcode$ = opcode$ + "$" + HEX$(a)
+      cy = 5
+   CASE 3
+      a = zpx
+      cy = 6
+   CASE 4
+      a = abso
+      cy = 6
+   CASE 5
+      a = absx
+      cy = 7
 END SELECT
 IF typ > 1 THEN
-   b = anybyte(a + 1)
+   b = anybyte(a)
    b = b * 2
    IF reg.s AND 1 THEN b = b + 1
    IF b < 256 THEN reg.s = reg.s AND 254
    IF b > 255 THEN b = b - 256: reg.s = reg.s OR 1
-   putbyte INT(b), a + 1
+   putbyte INT(b), a
 END IF
 reg.s = reg.s AND 125
 IF b = 0 THEN reg.s = reg.s OR 2
@@ -1486,11 +1551,13 @@ IF b > 127 THEN reg.a = reg.a OR 128
 cycle cy
 END SUB
 
+DEFSNG B
 SUB op.ror (typ)
 'ROR: Rotera h”ger.
 'N„stan alla varianter „r snabbt ihopsl„ngda, och inneh†ller
 'f”rmodligen fler buggar „n den att de inte wrappar...
 '^Felaktig info...
+opcode$ = "ROR "
 SELECT CASE typ
    CASE 1
       reg.a = reg.a + (reg.s AND 1) * 256
@@ -1498,44 +1565,33 @@ SELECT CASE typ
       reg.s = (reg.s OR (reg.a AND 1))
       reg.a = reg.a \ 2
       c = reg.a
-      opcode$ = "ROR"
       cy = 2
-   CASE 2 TO 3
-      c = getbyte
-      opcode$ = "ROR $" + HEX$(c)
-      IF typ = 3 THEN
-         c = c + reg.x       'Borde wrappa...
-         opcode$ = opcode$ + ", X"
-         IF c > 255 THEN c = c - 256
-      END IF
-      c = anybyte(c + 1)
-      c = c + (reg.s AND 1) * 256
-      reg.s = reg.s AND 254
-      reg.s = (reg.s OR (c AND 1))
-      c = c \ 2
-      putbyte c, a + 1
-      cy = 5
-   CASE 4 TO 5
+   CASE 2
       a = getbyte
-      b = getbyte
-      a = a + b * 256
-      opcode$ = "ROR $" + HEX$(a)
-      IF typ = 5 THEN
-         a = a + reg.x
-         opcode$ = opcode$ + ", X"
-         IF a > 65535 THEN a = a - 65536
-      END IF
-      c = anybyte(a + 1)
-      c = c + (reg.s AND 1) * 256
-      reg.s = reg.s AND 254
-      reg.s = (reg.s OR (c AND 1))
-      c = c \ 2
-      putbyte ra, a + 1
-      cy = 2 + typ
+      opcode$ = opcode$ + "$" + HEX$(c)
+      cy = 5
+   CASE 3
+      a = zpx
+      cy = 6
+   CASE 4
+      a = abso
+      cy = 6
+   CASE 5
+      a = absx
+      cy = 7
 END SELECT
+IF typ > 1 THEN
+   c = anybyte(a)
+   c = c + (reg.s AND 1) * 256
+   reg.s = reg.s AND 254
+   reg.s = (reg.s OR (c AND 1))
+   c = c \ 2
+   putbyte c, a
+END IF
 reg.s = reg.s AND 125
 IF c = 0 THEN reg.s = reg.s OR 2
 IF c > 127 THEN reg.a = reg.a OR 128
+cycle cy
 END SUB
 
 SUB op.rti
@@ -1557,44 +1613,52 @@ opcode$ = "RTS"
 cycle 6
 END SUB
 
+DEFINT A
 SUB op.sbc (typ)
 'SBC: Ackumulatorn - operanden/minnesbyten - C xor 1
+opcode$ = "SBC "
 SELECT CASE typ
    CASE 1
       a = getbyte
+      opcode$ = opcode$ + "$" + HEX$(a)
       cy = 2
-   CASE 2 TO 3
-      a = getbyte
-      opcode$ = "SBC $" + HEX$(a)
-      IF typ = 3 THEN
-         a = a + reg.x
-         IF a > 255 THEN a = a - 256
-         opcode$ = opcode$ + ", X"
-      END IF
-      cy = typ + 1
-   CASE 4 TO 6
-      a = getbyte
+   CASE 2
       b = getbyte
-      a = a + b * 256
-      opcode$ = "SBC $" + HEX$(a)
-      IF typ = 5 THEN a = a + reg.x: opcode$ = opcode$ + ", X"
-      IF typ = 6 THEN a = a + reg.y: opcode$ = opcode$ + ", Y"
-      IF a > 65535 THEN a = a - 65536
+      opcode$ = opcode$ + "$" + HEX$(a)
+      cy = 3
+   CASE 3
+      b = zpx
+      cy = 4
+   CASE 4
+      b = abso
+      cy = 4
+   CASE 5
+      b = absx
+      cy = 4
+   CASE 6
+      b = absy
       cy = 4
 END SELECT
-IF typ > 1 THEN a = anybyte(a + 1)
+IF typ > 1 THEN a = anybyte(b)
 IF (a AND 128) THEN a = a - 256
-reg.a = reg.a - a - ((reg.s AND 1) XOR 1)
+IF (reg.a AND 128) THEN reg.a = reg.a - 256
+reg.a = (reg.a - a) - ((reg.s AND 1) XOR 1)
 reg.s = reg.s AND 60
-IF (reg.a > 255) OR (reg.a < 0) THEN reg.s = reg.s OR 64    'V?
-IF reg.a > 255 THEN reg.a = reg.a - 256: reg.s = reg.s OR 1 'C?
-IF reg.a = 0 THEN reg.s = reg.s OR 2                        'Z?
+IF reg.a < -128 OR reg.a > 127 THEN reg.s = reg.s OR 64
+IF a >= 0 THEN
+   IF reg.a >= 0 THEN IF (reg.a + a + ((reg.s AND 1) XOR 1)) >= 0 THEN reg.s = reg.s OR 1
+ELSE
+   IF reg.a >= 0 THEN IF (reg.a + a + ((reg.s AND 1) XOR 1)) < 0 THEN reg.s = reg.s OR 1
+END IF
 IF reg.a < 0 THEN reg.a = reg.a + 256
-IF (reg.a AND 128) THEN reg.s = reg.s OR 128 'S?
+IF reg.a = 0 THEN reg.s = reg.s OR 2
+IF reg.a > 255 THEN PRINT "Ufo!": reg.a = reg.a - 256
+IF reg.a > 127 THEN reg.s = reg.s OR 128
 cycle cy
 
 END SUB
 
+DEFSNG A
 SUB op.sec
 'SEC: S„tt Carry-flagen.
 reg.s = reg.s OR 1
@@ -1627,7 +1691,7 @@ SELECT CASE typ
          opcode$ = opcode$ + ", X"
          IF a > 255 THEN a = a - 256
       END IF
-      putbyte reg.a, a + 1
+      putbyte reg.a, a
       cy = typ + 2
    CASE 3 TO 5                       'Absolut (X/Y). Tv† operander.
       b = getbyte
@@ -1637,7 +1701,7 @@ SELECT CASE typ
       IF typ = 4 THEN a = a + reg.x: opcode$ = opcode$ + ", X"
       IF typ = 5 THEN a = a + reg.y: opcode$ = opcode$ + ", Y"
       IF a > 65535 THEN a = a - 65536
-      putbyte reg.a, a + 1
+      putbyte reg.a, a
       IF typ = 3 THEN
          cy = 4
       ELSE
@@ -1647,20 +1711,20 @@ SELECT CASE typ
       c = getbyte
       a = c + reg.x
       IF a > 255 THEN a = a - 256
-      b = anybyte(a + 1)
-      a = anybyte(a + 2)
+      b = anybyte(a)
+      a = anybyte(a + 1)
       a = b + a * 256
       opcode$ = "STA ($" + HEX$(c) + ", X)"
-      putbyte reg.a, a + 1
+      putbyte reg.a, a
       cy = 6
    CASE 7
       c = getbyte
-      a = anybyte(c + 1)
-      b = anybyte(c + 2)
+      a = anybyte(INT(c))
+      b = anybyte(c + 1)
       a = a + b * 256 + reg.y
       IF a > 65535 THEN a = a - 65536
       opcode$ = "STA ($" + HEX$(c) + "), Y"
-      putbyte reg.a, a + 1
+      putbyte reg.a, a
       cy = 6
 END SELECT
 cycle cy
@@ -1668,47 +1732,39 @@ END SUB
 
 SUB op.stx (typ)
 'Stoppa reg.x i minnet...
+opcode$ = "STA "
 SELECT CASE typ
-   CASE 1 TO 2
+   CASE 1
       a = getbyte
-      opcode$ = "STX $" + HEX$(a)
-      IF typ = 2 THEN
-         a = a + reg.y
-         opcode$ = opcode$ + ", Y"
-         IF a > 255 THEN a = a - 256
-      END IF
-      cy = 2 + typ
+      opcode$ = opcode$ + "$" + HEX$(a)
+      cy = 3
+   CASE 2
+      a = zpy
+      cy = 4
    CASE 3
-      a = getbyte
-      b = getbyte
-      a = a + b * 256
-      opcode$ = "STX $" + HEX$(a)
-      cycle 4
+      a = abso
+      cy = 4
 END SELECT
-putbyte reg.x, a + 1
-
+putbyte reg.x, a
+cycle cy
 END SUB
 
 SUB op.sty (typ)
 'STY: Stoppa reg.y i minnet.
+opcode$ = "STY "
 SELECT CASE typ
-   CASE 1 TO 2
+   CASE 1
       a = getbyte
-      opcode$ = "STY $" + HEX$(a)
-      IF typ = 2 THEN
-         a = a + reg.x
-         opcode$ = opcode$ + ", X"
-         IF a > 255 THEN a = a - 256
-      END IF
-      cy = typ + 2
+      opcode$ = opcode$ + "$" + HEX$(a)
+      cy = 3
+   CASE 2
+      a = zpx
+      cy = 4
    CASE 3
-      a = getbyte
-      b = getbyte
-      a = a + b * 256
-      opcode$ = "STY $" + HEX$(a)
+      a = abso
       cy = 4
 END SELECT
-putbyte reg.y, a + 1
+putbyte reg.y, a
 cycle cy
 END SUB
 
@@ -1806,26 +1862,48 @@ END SUB
 
 FUNCTION pop%
 reg.sp = reg.sp + 1
+IF reg.sp = 256 THEN reg.sp = 0
 GET #2, 257 + reg.sp, byte$
 pop% = ASC(byte$)
+END FUNCTION
+
+FUNCTION post
+c = getbyte
+opcode$ = opcode$ + "($" + HEX$(c) + "), Y"
+a = anybyte(INT(c))
+b = anybyte(INT(c + 1))
+a = a + (b * 256) + reg.y
+IF (a AND 65536) THEN a = a AND 65535
+post = a
+END FUNCTION
+
+FUNCTION pre
+c = getbyte
+opcode$ = opcode$ + "($" + HEX$(c) + ", X)"
+c = c + reg.x
+IF (c AND 256) THEN c = c AND 255
+a = anybyte(INT(c))
+b = anybyte(c + 1)
+pre = a + b * 256
 END FUNCTION
 
 SUB push (r)
 byte$ = CHR$(r)
 PUT #2, 257 + reg.sp, byte$
 reg.sp = reg.sp - 1
+IF reg.sp < 0 THEN reg.sp = 255
 END SUB
 
 SUB putbyte (byte%, posi)
 byte$ = CHR$(byte%)
 'Kolla om n†gon speciell adress „r „ndrad.
-IF posi >= &H2001 THEN              'Mer „n $1FFF?
-   IF posi <= &H2008 THEN           'Mindre „n $2008?
+IF posi >= &H2000 THEN              'Mer „n $1FFF?
+   IF posi <= &H2007 THEN           'Mindre „n $2008?
      
-      IF posi = &H2001 THEN ppu1 = byte%
-      IF posi = &H2002 THEN ppu2 = byte%
-      IF posi = &H2004 THEN sprramposi = byte%
-      IF posi = &H2005 THEN
+      IF posi = &H2000 THEN ppu1 = byte%
+      IF posi = &H2001 THEN ppu2 = byte%
+      IF posi = &H2003 THEN sprramposi = byte%
+      IF posi = &H2004 THEN
          'LOCATE 10 + sprramposi, 40: PRINT sprramposi; "="; byte%
          sprramposi = sprramposi + 1
          MID$(sprram$, sprramposi, 1) = byte$
@@ -1834,24 +1912,27 @@ IF posi >= &H2001 THEN              'Mer „n $1FFF?
             IF byte% < sprite0(0) THEN sprite0(0) = byte%: sprite0(1) = posi
          END IF
       END IF
-      IF posi = &H2007 THEN         'Žndra adress f”r VRAM-l„sning/skrivning.
+      IF posi = &H2006 THEN         'Žndra adress f”r VRAM-l„sning/skrivning.
          vramposi = (vramposi AND 255) * 256 + byte%
          firstread = 1
       END IF
       okn = 1
       IF (ppu1 AND 4) THEN okn = 32
-      IF posi = &H2008 THEN PUT #4, vramposi + 1, byte$: vramposi = vramposi + okn: IF vramposi > 32767 THEN vramposi = vramposi - 32768': BEEP
+      IF posi = &H2007 THEN PUT #4, vramposi + 1, byte$: vramposi = vramposi + okn: IF vramposi > 32767 THEN vramposi = vramposi - 32768': BEEP
       'LOCATE 3, 40: PRINT HEX$(vramposi) + " = " + HEX$(byte%)
                         'Skriv till VRAM, och ”ka VRAM-"pointern".
-      IF posi = &H4015 THEN PRINT "Transfer!"
       EXIT SUB
    END IF
 END IF
 
-IF posi >= &H4001 THEN
-IF posi <= &H4018 THEN
+IF posi >= &H4000 THEN
+IF posi <= &H4017 THEN
 
-   IF posi = &H4017 THEN
+   IF posi = &H4014 THEN
+      c = byte% * 256 + 1
+      GET #2, c, sprram$
+   END IF
+   IF posi = &H4016 THEN
       IF (byte% AND 1) THEN
          IF joy1reset = 0 THEN joy1reset = 1
       ELSE
@@ -1863,7 +1944,7 @@ IF posi <= &H4018 THEN
 
 END IF
 END IF
-
+posi = posi + 1
 PUT #2, posi, byte$
 PUT #2, posi + &H800, byte$
 PUT #2, posi + &H1000, byte$
@@ -1906,4 +1987,27 @@ hagla 608, 416, "s"
 'DO WHILE INKEY$ = "": LOOP
 SLEEP
 END SUB
+
+FUNCTION zp
+a = getbyte
+opcode$ = opcode$ + "$" + HEX$(a)
+zp = a
+END FUNCTION
+
+DEFINT A
+FUNCTION zpx
+a = getbyte
+opcode$ = opcode$ + "$" + HEX$(a) + ", X"
+a = a + reg.x
+IF (a AND 256) THEN a = a AND 255
+zpx = a
+END FUNCTION
+
+FUNCTION zpy
+a = getbyte
+opcode$ = opcode$ + "$" + HEX$(a) + ", Y"
+a = a + reg.y
+IF (a AND 256) THEN a = a AND 255
+zpy = a
+END FUNCTION
 
