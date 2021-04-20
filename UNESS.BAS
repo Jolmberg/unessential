@@ -104,6 +104,7 @@ sprram$ = STRING$(256, CHR$(0))
 '
 'Changes:
 ' Comments translated into English
+' BVC/BVS fixed, were copies of BCC/BCS
 '
 'General info:
 'RAM is emulated with the file MEMORY.NIN.
@@ -1243,7 +1244,7 @@ SUB op.bvc
 'BVC: Branch if V=0
 a = getbyte
 IF a > 127 THEN a = a - 256
-IF (reg.s AND 1) = 0 THEN pc = pc + a
+IF (reg.s AND 64) = 0 THEN pc = pc + a
 s = s + 2                                'TODO: Check page boundary
 END SUB
 
@@ -1251,7 +1252,7 @@ SUB op.bvs
 'BVS: Branch if V=1
 a = getbyte
 IF a > 127 THEN a = a - 256
-IF (reg.s AND 1) THEN pc = pc + a
+IF (reg.s AND 64) THEN pc = pc + a
 s = s + 2                                'TODO: Check page boundary
 END SUB
 
