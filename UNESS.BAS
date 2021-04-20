@@ -81,8 +81,8 @@ DECLARE SUB op.tay ()
 DECLARE SUB emulate ()
 DEFINT C, R
 'Status: SV1BDIZC
-' Alla register m†ste vara share-ade...
-loadfont       'Ladda in fonten...
+' All registers must be shared
+loadfont
 DIM SHARED reg.a, reg.x, reg.y, reg.s, pc, reg.sp, fil$, byte$, opcode$
 DIM SHARED cycles, nmi, ut, bokstav(52, 5), bytes, rabies, vramposi, vblank
 DIM SHARED ppu1, brk, sprramposi, sprram$, ppustat, sprite0(1), lines, s
@@ -100,44 +100,35 @@ END
 7 firstread = 1
 skip = 2
 sprram$ = STRING$(256, CHR$(0))
-'uNESsential Nintendo-emulator. Version 0.145
+'uNESsential NES emulator. Version 0.20+
 '
-'Nyheter:
-' Frameskipping.
-' Paletter.
-' Scrollning.
-' SBC fixad.
-'    SMB, Excite Bike DKJr(hoppas).
-' Fixat massa ”verblivna timing-buggar sen cpu-ombyggningen.
-' PLA fixad. Žndrade inte reg.s. <-Egentligen 0.14 (men inte i release).
+'Changes:
+' Comments translated into English
 '
-'
-'Allm„n info:
-'RAM-minne emuleras genom filen MEMORY.NIN.
-'VRAM emuleras genom VRAM.NIN.
-'Sprite-RAM emuleras genom sprram$.
-'Alla opcode-funktioner heter op.???(?).
-'Register emuleras genom variabler.
-'Alla register-variabler heter reg.?. (undantag: pc, som inte f†r vara INT)
+'General info:
+'RAM is emulated with the file MEMORY.NIN.
+'VRAM is emulated with VRAM.NIN.
+'Sprite memory is emulated with sprram$.
+'opcode functions are called op.???(?).
+'Registers are emulated with variables.
+'All register variables are called reg.?. (exception: pc, which cannot be INT)
 
-'Variabler:
-'fil$ - Filnamn p† rommen som k”rs.
-'byte$ - variabel f”r h„mtning av en byte.
-'WARNING! Sharea inte "byte$". D† blir det haveri. <---Snack! Tv„rtom!
+'Variables:
+'fil$ - Filname of the current rom.
+'byte$ - variable for reading a byte from memory.
 
 byte$ = CHR$(0)
 CLS
-'Ladda in en rom...
+'Load a rom
 config
 fil$ = COMMAND$
 IF fil$ = "" THEN fil$ = filerequest$
 IF fil$ = "" THEN END
 SCREEN 12
 
-'Rita lite saker...
 CLS
-'LINE (0, 0)-(256, 224), 8, B
-'F”rberedelser...
+
+'Preparations
 joy1reads = 1
 FOR r = 1 TO 253
    MID$(sprram$, r, 1) = CHR$(&HF0)
@@ -145,16 +136,16 @@ NEXT r
 COLOR 12
 hagla 1, 270, "joypads"
 hagla 1, 290, "pattern tables"
-OPEN fil$ FOR BINARY AS #1         'Rommen har filnummer #1.
-OPEN "MEMORY.NIN" FOR BINARY AS #2 'Minnet har filnummer #2. OBS Byte 1=0
-OPEN "VRAM.NIN" FOR BINARY AS #4   'VRAM har filnummer #4.
-reg.s = &H2C                         'Status-bit 6=1
-pc = 17                            'Skippa 16-bytes-headern...
-reg.sp = 255                       'Stack-pekaren m†ste vara 255.
+OPEN fil$ FOR BINARY AS #1         'The rom has file number #1.
+OPEN "MEMORY.NIN" FOR BINARY AS #2 'Main memory has file number #2.
+OPEN "VRAM.NIN" FOR BINARY AS #4   'VRAM has file number #4.
+reg.s = &H2C                       'Status bit 6=1 (?)
+pc = 17                            'Skip the 16 byte header...
+reg.sp = 255                       'Stack pointer should be 255(!?)
 header
 LINE (459, 407)-(639, 407), 8, , 21845
 patterntables
-emulate                            'B”rja emulera!
+emulate                            'Start emulating!
 
 FUNCTION abso
 pc = pc + 1
@@ -514,8 +505,7 @@ byte$ = " "
 DO
 GET #2, pc, byte$
 bytes = ASC(byte$)
-'En miljard case-ar!
-'OBS! B”r sorteras i ordningen: vanligast f”rst - ovanligast sist...
+'Note! May want to place the most common ones first
 SELECT CASE ASC(byte$)
    CASE &HA9: op.lda (pc): pc = pc + 1: s = s + 2
    CASE &HA5: op.lda (getbyte): s = s + 3
@@ -970,8 +960,9 @@ NEXT o
 END SUB
 
 SUB header
-'Inl„sning av headern f”r att kolla mappers och storlekar...
-'Just nu „r bara antaled prg-rom-bankar viktigt...
+'Read the header to check mapper and rom size
+'Currently only mapper 0 is supported so mostly just need
+'to check the number of prg banks
 bytes$ = STRING$(32767, CHR$(0))
 PUT #2, 1, bytes$
 PUT #2, 32768, bytes$
@@ -984,20 +975,20 @@ GET #1, 7, byte$
 mirroring = ASC(byte$) AND 1
 bytes$ = STRING$(16384, " ")
 IF prgs = 1 THEN
-   GET #1, 17, bytes$             'Plocka ett prg-block.
-   PUT #2, 32769, bytes$          'Stoppa det i b†de $8000
-   PUT #2, 49153, bytes$          'och $C000.
+   GET #1, 17, bytes$             'Read a prg bank
+   PUT #2, 32769, bytes$          'Write it to $8000
+   PUT #2, 49153, bytes$          'and $C000
    bytes$ = STRING$(8192, " ")
-   GET #1, 16401, bytes$          'Plocka Pattern Tablesarna.
-   PUT #4, 1, bytes$              'Stoppa dem i VRAMen.
+   GET #1, 16401, bytes$          'Read pattern tables
+   PUT #4, 1, bytes$              'Write to VRAM
 ELSEIF prgs = 2 THEN
-   GET #1, 17, bytes$             'Plocka ett prg-block.
-   PUT #2, 32769, bytes$          'Stoppa det i $8000
-   GET #1, 16401, bytes$          'Plocka ett till
-   PUT #2, 49153, bytes$          'och stoppa det i $C000.
+   GET #1, 17, bytes$             'Read a prg bank
+   PUT #2, 32769, bytes$          'Write it $8000
+   GET #1, 16401, bytes$          'Read another one
+   PUT #2, 49153, bytes$          'Write it to $C000
    bytes$ = STRING$(8192, " ")
-   GET #1, 32785, bytes$          'Plocka Pattern Tablesarna.
-   PUT #4, 1, bytes$              'Stoppa dem i VRAMen.
+   GET #1, 32785, bytes$          'Read pattern tables
+   PUT #4, 1, bytes$              'Write to VRAM
 ELSE
    SCREEN 0
    PRINT "Unsupported mapper, or not a NES-file."
@@ -1005,8 +996,8 @@ ELSE
    END
 END IF
 a = getbyte
-'Reset vektor: FFFC (+1)
-'Kolla reset-position:
+'Reset vector: FFFC (+1)
+'Check reset position:
 byte$ = " "
 GET #2, 65533, byte$
 a = ASC(byte$)
@@ -1148,7 +1139,7 @@ END SUB
 
 DEFSNG A
 SUB op.and (typ)
-'AND: ANDa Ackumulatorn med minne/operand.
+'AND: AND A with byte in memory
 r = anybyte(typ)
 reg.a = reg.a AND r
 reg.s = reg.s AND 125
@@ -1157,7 +1148,7 @@ IF reg.a > 127 THEN reg.s = reg.s OR 128
 END SUB
 
 SUB op.asl (typ)
-'ASL: Shift Left...
+'ASL: Shift byte in memory left
 reg.s = reg.s AND 254
 b% = anybyte(typ)
 b% = b% * 2
@@ -1170,34 +1161,34 @@ END SUB
 
 DEFINT A
 SUB op.bcc
-'BCC: Brancha om c=0...
+'BCC: Branch if c=0
 a = getbyte
 IF a > 127 THEN a = a - 256
 IF (reg.s AND 1) = 0 THEN pc = pc + a
-s = s + 2                             'OBS! Konstig.
+s = s + 2                             'TODO: Check page boundary
 END SUB
 
 SUB op.bcs
-'BCS: Brancha om c=1
+'BCS: Branch if c=1
 a = getbyte
 IF a > 127 THEN a = a - 256
 IF (reg.s AND 1) THEN pc = pc + a
-s = s + 2                             'OBS! Konstig.
+s = s + 2                             'TODO: Check page boundary
 END SUB
 
 SUB op.beq
-'BEQ: Brancha om Z=1
+'BEQ: Branch if Z=1
 a = getbyte
 IF a > 127 THEN a = a - 256
 IF (reg.s AND 2) THEN pc = pc + a
-s = s + 2                             'OBS! Konstig.
+s = s + 2                             'TODO: Check page boundary
 END SUB
 
 DEFINT B
 DEFSNG A
 SUB op.bit (typ)
-'BIT: ANDa minnemed ackumulatorn och f”r ”ver bit 7 och 8
-'     till status-registret(!?)
+'BIT: AND byte in memory with A and transfer bit 7 and 8
+'     to the status register(!?)
 b = anybyte(typ)
 reg.s = reg.s AND 61
 reg.s = (reg.s OR (b AND 192))
@@ -1209,39 +1200,39 @@ END SUB
 DEFINT A
 DEFSNG B
 SUB op.bmi
-'BMI: Brancha om s=1
+'BMI: Branch if S=1
 a = getbyte
 IF a > 127 THEN a = a - 256
 IF (reg.s AND 128) THEN pc = pc + a
-s = s + 2                                'OBS!
+s = s + 2                                'TODO: Check page boundary
 END SUB
 
 SUB op.bne
-'BNE: Brancha om Z=0
+'BNE: Branch if Z=0
 a = getbyte
 IF a > 127 THEN a = a - 256
 IF (reg.s AND 2) = 0 THEN pc = pc + a
-s = s + 2                             'OBS!
+s = s + 2                                'TODO: Check page boundary
 END SUB
 
 SUB op.bpl
-'BPL: Brancha om s=0
+'BPL: Branch if S=0
 a = getbyte
 IF a > 127 THEN a = a - 256
 IF (reg.s AND 128) = 0 THEN pc = pc + a
-s = s + 2                                'OBS!
+s = s + 2                                'TODO: Check page boundary
 END SUB
 
 DEFSNG A
 SUB op.brk
-'BRK: Brk helt enkelt... :(
+'BRK: Just BRK... :(
 IF (reg.s AND 4) = 0 THEN
    pc = pc + 2
    b% = (pc AND 65280) / 256
    a% = (pc AND 255)
    push b%
    push a%
-   push reg.s OR 16             'L„gg status p† stacken med b-biten.
+   push reg.s OR 16             'Push status with B set
    reg.s = reg.s OR 4
    pc = brk
 END IF
@@ -1249,48 +1240,48 @@ END SUB
 
 DEFINT A
 SUB op.bvc
-'BVC: Brancha om V=0.
+'BVC: Branch if V=0
 a = getbyte
 IF a > 127 THEN a = a - 256
 IF (reg.s AND 1) = 0 THEN pc = pc + a
-s = s + 2                             'OBS! Konstig.
+s = s + 2                                'TODO: Check page boundary
 END SUB
 
 SUB op.bvs
-'BVS: Brancha om V=1
+'BVS: Branch if V=1
 a = getbyte
 IF a > 127 THEN a = a - 256
 IF (reg.s AND 1) THEN pc = pc + a
-s = s + 2                             'OBS! Konstig.
+s = s + 2                                'TODO: Check page boundary
 END SUB
 
 DEFSNG A
 SUB op.clc
-'CLC: Rensa carry-flagen...
+'CLC: Clear carry flag
 reg.s = reg.s AND 254
 s = s + 2
 END SUB
 
 SUB op.cld
-'CLD: Rensa Decimal-flagen.
+'CLD: Clear decimal flag
 reg.s = reg.s AND 247
 s = s + 2
 END SUB
 
 SUB op.cli
-'CLI: Rensa Interrupt disable-flagen.
+'CLI: Clear interrupt disable flag
 reg.s = reg.s AND 251
 s = s + 2
 END SUB
 
 SUB op.clv
-'CLV: Rensa Owerflow-flagen.
+'CLV: Clear overflow flag
 reg.s = reg.s AND 191
 s = s + 2
 END SUB
 
 SUB op.cmp (typ)
-'CMP J„mf”r operand och reg.a. (reg.a-operand)...
+'CMP Compare A with byte in memory
 r = anybyte(typ)
 reg.s = reg.s AND 124
 IF r = reg.a THEN reg.s = reg.s OR 3
@@ -1299,7 +1290,7 @@ IF r < reg.a THEN reg.s = reg.s OR 1
 END SUB
 
 SUB op.cpx (typ)
-'CPX: J„mf”r X-registret och minne/operand.
+'CPX: Compare X with byte in memory
 r = anybyte(typ)
 reg.s = reg.s AND 124
 IF r = reg.x THEN reg.s = reg.s OR 3
@@ -1308,7 +1299,7 @@ IF r < reg.x THEN reg.s = reg.s OR 1
 END SUB
 
 SUB op.cpy (typ)
-'CPY: J„mf”r Y-registret och minne/operand.
+'CPY: Compare Y with byte in memory
 r = anybyte(typ)
 reg.s = reg.s AND 124
 IF r = reg.y THEN reg.s = reg.s OR 3
@@ -1318,7 +1309,7 @@ END SUB
 
 DEFINT B
 SUB op.dec (typ)
-'DEC: Minska byte i minnet med 1.
+'DEC: Decrement byte in memory by 1
 b = anybyte(typ)
 b = b - 1
 IF b = -1 THEN b = 255
@@ -1330,7 +1321,7 @@ END SUB
 
 DEFSNG B
 SUB op.dex
-'DEX: X-registret minskas med 1.
+'DEX: Decrement X by 1
 reg.x = reg.x - 1
 reg.s = reg.s AND 125
 IF reg.x = 0 THEN reg.s = reg.s OR 2
@@ -1340,7 +1331,7 @@ s = s + 2
 END SUB
 
 SUB op.dey
-'DEY: Y-registret minskas med 1.
+'DEY: Decrement Y by 1
 reg.y = reg.y - 1
 reg.s = reg.s AND 125
 IF reg.y = 0 THEN reg.s = reg.s OR 2                 'Z?
@@ -1351,7 +1342,7 @@ END SUB
 
 DEFINT B
 SUB op.eor (typ)
-'EOR: XORa minne/operand med ackumulatorn.
+'EOR: XOR A with byte in memory
 b = anybyte(typ)
 reg.a = reg.a XOR b
 reg.s = reg.s AND 125
@@ -1360,7 +1351,7 @@ IF reg.a > 127 THEN reg.s = reg.s OR 128  'S?
 END SUB
 
 SUB op.inc (typ)
-'INC: ™ka byte i minnet med 1.
+'INC: Increment byte in memory by 1
 b = anybyte(typ)
 b = b + 1
 reg.s = reg.s AND 125
@@ -1371,9 +1362,9 @@ END SUB
 
 DEFSNG B
 SUB op.inx
-'INX: X-registret ”kas med 1.
+'INX: Increment X by 1
 reg.x = reg.x + 1
-IF reg.x = 256 THEN reg.x = 0    'Kanske overflow...
+IF reg.x = 256 THEN reg.x = 0    'Overflow?
 
 reg.s = reg.s AND 125
 IF reg.x = 0 THEN reg.s = reg.s OR 2
@@ -1383,7 +1374,7 @@ s = s + 2
 END SUB
 
 SUB op.iny
-'INY: Y-registret ”kas med 1.
+'INY: Increment Y by 1
 reg.y = reg.y + 1
 IF reg.y = 256 THEN reg.y = 0
 reg.s = reg.s AND 125
@@ -1393,14 +1384,13 @@ s = s + 2
 END SUB
 
 SUB op.jmp (typ)
-'JMP: Hoppa till ny position...
-'Det h„r ser konstigt ut i och med att 1 inte l„ggs till p† adressen.
-'Det beror p† att pc ”kas med ett efter varje opcode „nd†... :)
+'JMP: Jump to a new position
+'Note that pc is incremented by 1 after each instruction
 SELECT CASE typ
-   CASE 1                          'Direkt. Tv† operander.
+   CASE 1                          'Direct. Two operand bytes.
       pc = abso
       s = s + 3
-CASE 2                             'Indirekt. Tv† operander.
+   CASE 2                          'Indirect. Two operand bytes.
       b = abso
       a = anybyte(b)
       b = anybyte(b + 1)
@@ -1410,7 +1400,7 @@ END SELECT
 END SUB
 
 SUB op.jsr
-'JSR: L„gg pc p† stacken och hoppa.
+'JSR: Push pc and jump
 a = getbyte
 b = getbyte
 pc = pc - 1
@@ -1421,7 +1411,7 @@ s = s + 6
 END SUB
 
 SUB op.lda (typ)
-'LDA: Ladda Ackumulatorn med [operand(er)]
+'LDA: Load A
 reg.a = anybyte(typ)
 reg.s = reg.s AND 125
 IF reg.a = 0 THEN reg.s = reg.s OR 2  'Z?
@@ -1429,6 +1419,7 @@ IF reg.a > 127 THEN reg.s = reg.s OR 128'S?
 END SUB
 
 SUB op.ldx (typ)
+'LDX: Load X
 reg.x = anybyte(typ)
 reg.s = reg.s AND 125
 IF reg.x = 0 THEN reg.s = reg.s OR 2
@@ -1436,7 +1427,7 @@ IF reg.x > 127 THEN reg.s = reg.s OR 128
 END SUB
 
 SUB op.ldy (typ)
-'LDY: Stoppa reg.y fullsmockat!
+'LDY: Load Y like crazy
 reg.y = anybyte(typ)
 reg.s = reg.s AND 125
 IF reg.y = 0 THEN reg.s = reg.s OR 2
@@ -1444,10 +1435,10 @@ IF reg.y > 127 THEN reg.s = reg.s OR 128
 END SUB
 
 SUB op.lsr (typ)
-'LSR: Skifta h”ger (Dela med tv†).
+'LSR: Shift byte in memory right
 reg.s = reg.s AND 254
 b% = anybyte(typ)
-reg.s = (reg.s OR (b% AND 1)) 'Fixa carry.
+reg.s = (reg.s OR (b% AND 1)) 'Fix carry.
 b% = b% \ 2
 putbyte b%, typ
 reg.s = reg.s AND 125
@@ -1456,7 +1447,7 @@ END SUB
 
 DEFINT B
 SUB op.ora (typ)
-'ORA: ORa Ackumulatorn med operand/minne. Reultat i Ackumulatorn.
+'ORA: OR A with byte in memory
 b = anybyte(typ)
 reg.a = reg.a OR b
 reg.s = reg.s AND 125
@@ -1466,37 +1457,37 @@ END SUB
 
 DEFSNG B
 SUB op.pha
-'PHA: L„gg Ackumulatorn p† stacken...
-push reg.a 'Se ovan...
+'PHA: Push A
+push reg.a
 s = s + 3
 END SUB
 
 SUB op.php
-'PHP: L„gg statusregistret p† stacken(!)
+'PHP: Push status register(!)
 push reg.s
 s = s + 3
 END SUB
 
 SUB op.pla
-'PLA: Stackens ”versta byte l„ggs i Ackumulatorn.
+'PLA: Pull A
 reg.a = pop
 reg.s = reg.s AND 125
 IF reg.a = 0 THEN reg.s = reg.s OR 2
 IF reg.a > 127 THEN reg.s = reg.s OR 128
-'OBS! Byten som l„ses in ligger fortfarande kvar i stacken.
-'Detta leder till h”gre hastighet, men kanske ocks† haveri. Troligtvis inte.
+'Note! The byte that was read will remain on the stack.
+'Which is of course perfectly normal and expected. :)
 s = s + 4
 END SUB
 
 SUB op.plp
-'PLP: Plocka status-registret fr†n stacken.
+'PLP: Pull status register
 reg.s = pop
 s = s + 4
 END SUB
 
 DEFINT B
 SUB op.rol (typ)
-'ROL: Rotera v„nster.
+'ROL: Rotate byte in memory left
 b = anybyte(typ)
 b = b + b + (reg.s AND 1)
 IF b < 256 THEN
@@ -1512,10 +1503,7 @@ END SUB
 
 DEFSNG B
 SUB op.ror (typ)
-'ROR: Rotera h”ger.
-'N„stan alla varianter „r snabbt ihopsl„ngda, och inneh†ller
-'f”rmodligen fler buggar „n den att de inte wrappar...
-'^Felaktig info...
+'ROR: Rotate byte in memory right
 c = anybyte(typ)
 c = c + (reg.s AND 1) * 256
 reg.s = reg.s AND 254
@@ -1528,7 +1516,7 @@ IF c > 127 THEN reg.s = reg.s OR 128
 END SUB
 
 SUB op.rti
-'RTI: Return from Interrupt
+'RTI: Return from interrupt
 reg.s = pop AND 239
 a = pop
 b = pop
@@ -1536,9 +1524,9 @@ pc = a + b * 256
 END SUB
 
 SUB op.rts
-'RTS: L„s pc fr†n stacken.
-a = pop              'F”rst den l†ga byten
-b = pop              'Sedan den h”ga :)
+'RTS: Pull pc
+a = pop              'First the low byte
+b = pop              'Then the high one :)
 pc = a + b * 256 + 1
 s = s + 6
 END SUB
@@ -1567,40 +1555,40 @@ END SUB
 
 DEFSNG A
 SUB op.sec
-'SEC: S„tt Carry-flagen.
+'SEC: Set carry flag
 reg.s = reg.s OR 1
 s = s + 2
 END SUB
 
 SUB op.sed
-'SED: S„tt Decimal mode-flagen.
+'SED: Set decimal mode flag
 reg.s = reg.s OR 8
 s = s + 2
 END SUB
 
 SUB op.sei
-'SEI: I-flagen s„tts till 1.
+'SEI: Set interupt disable flag
 reg.s = reg.s OR 4
 s = s + 2
 END SUB
 
 SUB op.sta (typ)
-'STA: Stoppa Ackumulatorn i minnet.
+'STA: Store A
 putbyte reg.a, typ
 END SUB
 
 SUB op.stx (typ)
-'Stoppa reg.x i minnet...
+'STX: Store X
 putbyte reg.x, typ
 END SUB
 
 SUB op.sty (typ)
-'STY: Stoppa reg.y i minnet.
+'STY: Store Y
 putbyte reg.y, typ
 END SUB
 
 SUB op.tax
-'TAX: Inneh†llet i Ackumulatorn f”rs ”ver till X-registret.
+'TAX: Transfer A to X
 reg.x = reg.a
 reg.s = reg.s AND 125
 IF reg.x = 0 THEN reg.s = reg.s OR 2
@@ -1609,7 +1597,7 @@ s = s + 2
 END SUB
 
 SUB op.tay
-'TAY: Inneh†llet i Ackumulatorn f”rs ”ver till Y-registret.
+'TAY: Transfer A to Y
 reg.y = reg.a
 reg.s = reg.s AND 125
 IF reg.y = 0 THEN reg.s = reg.s OR 2
@@ -1619,7 +1607,7 @@ END SUB
 
 DEFSNG C, R
 SUB op.tsx
-'TSX: Stack-pekarens inneh†ll f”rs ”ver till X-registret.
+'TSX: Transfer stack pointer to X
 reg.x = reg.sp
 reg.s = reg.s AND 125
 IF reg.x = 0 THEN reg.s = reg.s OR 2
@@ -1629,7 +1617,7 @@ END SUB
 
 DEFINT C, R
 SUB op.txa
-'TXA: Inneh†llet i X-registret f”rs ”ver till Ackumulatorn.
+'TXA: Transfer X to A
 reg.a = reg.x
 reg.s = reg.s AND 125
 IF reg.a = 0 THEN reg.s = reg.s OR 2
@@ -1638,13 +1626,13 @@ s = s + 2
 END SUB
 
 SUB op.txs
-'TXS X-registret f”rs ”ver till stackpekaren...
+'TXS: Transfer X to stack pointer
 reg.sp = reg.x
 s = s + 2
 END SUB
 
 SUB op.tya
-'TYA: Inneh†llet i Y-registret f”rs ”ver till ackumulatorn.
+'TYA: Transfer Y to A
 reg.a = reg.y
 reg.s = reg.s AND 125
 IF reg.a = 0 THEN reg.s = reg.s OR 2
@@ -1654,7 +1642,7 @@ END SUB
 
 SUB patterntables
 DIM linje(7)
-'Rita upp patterntablesarna som ligger i VRAMen...
+'Draw pattern tables from VRAM
 bytes$ = STRING$(8192, " ")
 GET #4, 1, bytes$
 a = 1
@@ -1718,14 +1706,13 @@ IF reg.sp < 0 THEN reg.sp = 255
 END SUB
 
 SUB putbyte (byte%, posi)
-'Kolla om n†gon speciell adress „r „ndrad.
-IF posi >= &H2000 THEN              'Mer „n $1FFF?
-   IF posi <= &H2007 THEN           'Mindre „n $2008?
+'Check if we are writing to some special address
+IF posi >= &H2000 THEN
+   IF posi <= &H2007 THEN
       IF posi = &H2000 THEN ppu1 = byte%
       IF posi = &H2001 THEN ppu2 = byte%
       IF posi = &H2003 THEN sprramposi = byte%
       IF posi = &H2004 THEN
-         'LOCATE 10 + sprramposi, 40: PRINT sprramposi; "="; byte%
          sprramposi = sprramposi + 1
          MID$(sprram$, sprramposi, 1) = CHR$(byte%)
       END IF
@@ -1738,18 +1725,18 @@ IF posi >= &H2000 THEN              'Mer „n $1FFF?
             scrollwrite = 1
          END IF
       END IF
-      IF posi = &H2006 THEN         'Žndra adress f”r VRAM-l„sning/skrivning.
+      IF posi = &H2006 THEN        'Change address for VRAM read/write
          vramposi = (vramposi AND 255) * 256 + byte%
          firstread = 1
       END IF
-      IF posi = &H2007 THEN        'Skriv till VRAM, och ”ka VRAM-"pointern".
+      IF posi = &H2007 THEN        'Write to VRAM, increment "pointer"
          okn = 1
          IF (ppu1 AND 4) THEN okn = 32
          byte$ = CHR$(byte%)
          PUT #4, vramposi + 1, byte$
          vramposi = vramposi + okn
          IF vramposi > 32767 THEN vramposi = vramposi - 32768
-         'LOCATE 3, 40: PRINT HEX$(vramposi) + " = " + HEX$(byte%)
+
                         
       END IF
       EXIT SUB
@@ -1844,14 +1831,14 @@ IF vblank = 0 THEN
    IF (ppu1 AND 128) THEN
       
       s = s + 7
-      'L„gg pc p† stacken.
+      'Push pc
       b% = (pc AND 65280) / 256
       a% = (pc AND 255)
       push b%
       push a%
-      push reg.s        'L„gg status p† stacken...
+      push reg.s        'Push status
       reg.s = reg.s OR 4
-      'opcode$ = "vblank: hoppar till " + HEX$(nmi)
+      'opcode$ = "vblank: jumping to " + HEX$(nmi)
       pc = nmi
    END IF
    frame = frame + 1
