@@ -83,12 +83,22 @@ DEFINT C, R
 'Status: SV1BDIZC
 ' All registers must be shared
 loadfont
-DIM SHARED reg.a, reg.x, reg.y, reg.s, pc, reg.sp, fil$, byte$, opcode$
-DIM SHARED cycles, nmi, ut, bokstav(52, 5), bytes, rabies, vramposi, vblank
-DIM SHARED ppu1, brk, sprramposi, sprram$, ppustat, sprite0(1), lines, s
-DIM SHARED joy1emu, joy1reads, joy1reset, ppu2, firstread, bpoint, skip
-DIM SHARED mirroring, scrollwrite, hscroll, vscroll, pal(63, 2), colour(15)
-DIM SHARED spr(15), palemu, frame
+DIM SHARED reg.a AS INTEGER, reg.x AS INTEGER, reg.y AS INTEGER
+DIM SHARED reg.s AS INTEGER, pc AS LONG, reg.sp AS INTEGER
+DIM SHARED nmi AS LONG, brk AS LONG
+DIM SHARED fil$, byte$, opcode$
+DIM SHARED ut AS INTEGER
+DIM SHARED bokstav(52, 5) AS INTEGER, rabies
+DIM SHARED vramposi AS INTEGER, vblank AS INTEGER, ppu1 AS INTEGER
+DIM SHARED sprramposi AS INTEGER, sprram$
+DIM SHARED ppustat AS INTEGER, sprite0(1) AS INTEGER, lines AS INTEGER
+DIM SHARED s AS INTEGER, joy1emu AS INTEGER, joy1reads AS INTEGER
+DIM SHARED joy1reset AS INTEGER, ppu2 AS INTEGER, firstread AS INTEGER
+DIM SHARED bpoint AS LONG, skip AS INTEGER
+DIM SHARED mirroring AS INTEGER, scrollwrite AS INTEGER
+DIM SHARED hscroll AS INTEGER, vscroll AS INTEGER
+DIM SHARED pal(63, 2) AS INTEGER, colour(15) AS INTEGER
+DIM SHARED spr(15) AS INTEGER, palemu AS INTEGER, frame AS INTEGER
 ON ERROR GOTO 14
 GOTO 7
 14
