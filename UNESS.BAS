@@ -151,7 +151,6 @@ OPEN fil$ FOR BINARY AS #1         'The rom has file number #1.
 OPEN "MEMORY.NIN" FOR BINARY AS #2 'Main memory has file number #2.
 OPEN "VRAM.NIN" FOR BINARY AS #4   'VRAM has file number #4.
 reg.s = &H2C                       'Status bit 6=1 (?)
-pc = 17                            'Skip the 16 byte header...
 reg.sp = 255                       'Stack pointer should be 255(!?)
 header
 LINE (459, 407)-(639, 407), 8, , 21845
@@ -515,7 +514,6 @@ byte$ = " "
 'OPEN "debug.log" FOR BINARY AS #9
 DO
 GET #2, pc, byte$
-bytes = ASC(byte$)
 'Note! May want to place the most common ones first
 SELECT CASE ASC(byte$)
    CASE &HA9: op.lda (pc): pc = pc + 1: s = s + 2
