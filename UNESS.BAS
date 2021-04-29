@@ -1658,67 +1658,44 @@ IF reg.sp < 0 THEN reg.sp = 255
 END SUB
 
 SUB putbyte (byte%, posi AS LONG)
-IF posi >= &H2000 THEN
-   IF posi <= &H2007 THEN
-      IF posi = &H2000 THEN ppu1 = byte%
-      IF posi = &H2001 THEN ppu2 = byte%
-      IF posi = &H2003 THEN sprramposi = byte%
-      IF posi = &H2004 THEN
-         sprram(sprramposi) = byte%
-         sprramposi = sprramposi + 1
-      END IF
-      IF posi = &H2005 THEN
-         IF scrollwrite = 1 THEN
-            vscroll = byte%
-            scrollwrite = 0
-         ELSE
-            hscroll = byte%
-            scrollwrite = 1
-         END IF
-      END IF
-      IF posi = &H2006 THEN        'Change address for VRAM read/write
-         vramposi = (vramposi AND 63) * 256 + byte%
-         firstread = 1
-      END IF
-      IF posi = &H2007 THEN        'Write to VRAM, increment "pointer"
-         okn = 1
-         IF (ppu1 AND 4) THEN okn = 32
-         vram(vramposi) = byte%
-         vramposi = vramposi + okn
-         IF vramposi > 32767 THEN vramposi = vramposi - 32768
-
-                        
-      END IF
-      EXIT SUB
+IF posi < &H800 THEN
+   ram(posi) = byte%
+   'Ignore mirroring, it's rarely needed
+ELSEIF posi = &H2000 THEN ppu1 = byte%
+ELSEIF posi = &H2001 THEN ppu2 = byte%
+ELSEIF posi = &H2003 THEN sprramposi = byte%
+ELSEIF posi = &H2004 THEN
+   sprram(sprramposi) = byte%
+   sprramposi = sprramposi + 1
+ELSEIF posi = &H2005 THEN
+   IF scrollwrite = 1 THEN
+      vscroll = byte%
+      scrollwrite = 0
+   ELSE
+      hscroll = byte%
+      scrollwrite = 1
+   END IF
+ELSEIF posi = &H2006 THEN        'Change address for VRAM read/write
+   vramposi = (vramposi AND 63) * 256 + byte%
+   firstread = 1
+ELSEIF posi = &H2007 THEN        'Write to VRAM, increment "pointer"
+   okn = 1
+   IF (ppu1 AND 4) THEN okn = 32
+   vram(vramposi) = byte%
+   vramposi = (vramposi + okn) AND 32767
+ELSEIF posi = &H4014 THEN
+   c = byte% * 256
+   FOR x = 0 TO 255
+      sprram(x) = ram(c + x)
+   NEXT x
+   s = s + 513
+ELSEIF posi = &H4016 THEN
+   IF (byte% AND 1) THEN
+      IF joy1reset = 0 THEN joy1reset = 1
+   ELSE
+      IF joy1reset = 1 THEN joy1reset = 0: joy1reads = 1
    END IF
 END IF
-
-IF posi >= &H4000 THEN
-IF posi <= &H4017 THEN
-
-   IF posi = &H4014 THEN
-      c = byte% * 256
-      FOR x = 0 TO 255
-         sprram(x) = ram(c + x)
-      NEXT x
-      s = s + 513
-   END IF
-   IF posi = &H4016 THEN
-      IF (byte% AND 1) THEN
-         IF joy1reset = 0 THEN joy1reset = 1
-      ELSE
-         IF joy1reset = 1 THEN joy1reset = 0: joy1reads = 1
-      END IF
-   END IF
-  
-   EXIT SUB
-
-END IF
-END IF
-ram(posi) = byte%
-'PUT #2, posi + &H800, byte$
-'PUT #2, posi + &H1000, byte$
-'PUT #2, posi + &H1800, byte$
 
 END SUB
 
