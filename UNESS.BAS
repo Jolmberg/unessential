@@ -90,7 +90,7 @@ DIM SHARED fil$, byte$, opcode$
 DIM SHARED ut AS INTEGER
 DIM SHARED bokstav(52, 5) AS INTEGER, rabies
 DIM SHARED vramposi AS INTEGER, vblank AS INTEGER, ppu1 AS INTEGER
-DIM SHARED sprramposi AS INTEGER, sprram$
+DIM SHARED sprramposi AS INTEGER, sprram(256) AS INTEGER
 DIM SHARED ppustat AS INTEGER, sprite0(1) AS INTEGER, lines AS INTEGER
 DIM SHARED s AS INTEGER, joy1emu AS INTEGER, joy1reads AS INTEGER
 DIM SHARED joy1reset AS INTEGER, ppu2 AS INTEGER, firstread AS INTEGER
@@ -99,6 +99,8 @@ DIM SHARED mirroring AS INTEGER, scrollwrite AS INTEGER
 DIM SHARED hscroll AS INTEGER, vscroll AS INTEGER
 DIM SHARED pal(63, 2) AS INTEGER, colour(15) AS INTEGER
 DIM SHARED spr(15) AS INTEGER, palemu AS INTEGER, frame AS INTEGER
+DIM SHARED bank1(16383) AS INTEGER, bank2(16383) AS INTEGER
+DIM SHARED ram(2047) AS INTEGER, vram(16383) AS INTEGER
 ON ERROR GOTO 14
 GOTO 7
 14
@@ -109,19 +111,15 @@ PRINT "If it was caused by something else, please mail us."
 END
 7 firstread = 1
 skip = 2
-sprram$ = STRING$(256, CHR$(0))
 'uNESsential NES emulator. Version 0.20+
 '
 'Changes:
 ' Comments translated into English
 ' BVC/BVS fixed, were copies of BCC/BCS
+' Use arrays instead of files to emulate memory
 '
 'General info:
-'RAM is emulated with the file MEMORY.NIN.
-'VRAM is emulated with VRAM.NIN.
-'Sprite memory is emulated with sprram$.
 'opcode functions are called op.???(?).
-'Registers are emulated with variables.
 'All register variables are called reg.?. (exception: pc, which cannot be INT)
 
 'Variables:
@@ -142,14 +140,12 @@ CLS
 'Preparations
 joy1reads = 1
 FOR r = 1 TO 253
-   MID$(sprram$, r, 1) = CHR$(&HF0)
+   sprram(r) = &HF0
 NEXT r
 COLOR 12
 hagla 1, 270, "joypads"
 hagla 1, 290, "pattern tables"
 OPEN fil$ FOR BINARY AS #1         'The rom has file number #1.
-OPEN "MEMORY.NIN" FOR BINARY AS #2 'Main memory has file number #2.
-OPEN "VRAM.NIN" FOR BINARY AS #4   'VRAM has file number #4.
 reg.s = &H2C                       'Status bit 6=1 (?)
 reg.sp = 255                       'Stack pointer should be 255(!?)
 header
@@ -159,78 +155,54 @@ emulate                            'Start emulating!
 
 FUNCTION abso&
 pc = pc + 1
-GET #2, pc, byte$
-a = ASC(byte$)
+a = anybyte(pc)
 pc = pc + 1
-GET #2, pc, byte$
-b = ASC(byte$)
-a = a + b * 256
-abso = a
-
+b = anybyte(pc)
+abso = a + b * 256
 END FUNCTION
 
 FUNCTION absx&
 pc = pc + 1
-GET #2, pc, byte$
-a = ASC(byte$)
+a = anybyte(pc)
 pc = pc + 1
-GET #2, pc, byte$
-b = ASC(byte$)
-a = a + b * 256
-a = a + reg.x
-IF (a AND 65536) THEN a = a AND 65535
-absx = a
+b = anybyte(pc)
+absx = (a + b * 256 + reg.x) AND 65535
 END FUNCTION
 
 FUNCTION absy&
 pc = pc + 1
-GET #2, pc, byte$
-a = ASC(byte$)
+a = anybyte(pc)
 pc = pc + 1
-GET #2, pc, byte$
-b = ASC(byte$)
-a = a + b * 256
-a = a + reg.y
-IF (a AND 65536) THEN a = a AND 65535
-absy = a
+b = anybyte(pc)
+absy = (a + b * 256 + reg.y) AND 65535
 END FUNCTION
 
 FUNCTION anybyte% (posi AS LONG)
-GET #2, posi + 1, byte$
-anybyte% = ASC(byte$)
-
-IF posi >= &H2000 THEN
-IF posi <= &H2007 THEN
-
-'IF posi = &H2001 THEN anybyte% = ppu1
-'IF posi = &H2002 THEN anybyte% = ppu2
-IF posi = &H2002 THEN anybyte% = ppustat: ppustat = ppustat AND 127
-IF posi = &H2004 THEN anybyte% = ASC(MID$(sprram$, sprramposi + 1))
-IF posi = &H2007 THEN
+IF (posi AND &H8000) THEN
+   IF (posi AND &H4000) THEN
+      anybyte% = bank2(posi AND &H3FFF)
+   ELSE
+      anybyte% = bank1(posi AND &H3FFF)
+   END IF
+ELSEIF posi < &H800 THEN
+   anybyte% = ram(posi)
+ELSEIF posi = &H2002 THEN
+   anybyte% = ppustat: ppustat = ppustat AND 127
+ELSEIF posi = &H2004 THEN
+   anybyte% = sprram(sprramposi)
+ELSEIF posi = &H2007 THEN
    okn = 1
    IF (ppu1 AND 4) THEN okn = 32
-   GET #4, vramposi + 1, byte$: anybyte% = ASC(byte$)
+   anybyte% = vram(vramposi)
    IF firstread = 0 THEN
       vramposi = vramposi + okn
    END IF
    firstread = 0
+ELSEIF posi = &H4016 THEN
+   IF (joy1emu AND joy1reads) = joy1reads THEN anybyte% = 1
+   joy1reads = joy1reads * 2
+   IF joy1reads > 256 THEN joy1reads = 256
 END IF
-
-END IF
-END IF
-
-IF posi >= &H4000 THEN
-IF posi <= &H4017 THEN
-
-   IF posi = &H4016 THEN
-      IF (joy1emu AND joy1reads) = joy1reads THEN anybyte% = 1
-      joy1reads = joy1reads * 2
-      IF joy1reads > 256 THEN joy1reads = 256
-   END IF
-
-END IF
-END IF
-
 END FUNCTION
 
 FUNCTION breakpoint
@@ -301,15 +273,11 @@ IF o = 0 THEN adr = &H2000
 IF o = 1 THEN adr = &H2400
 IF o = 2 THEN adr = &H2800
 IF o = 3 THEN adr = &H2C00
-bytes$ = STRING$(960, " ")
-bytespr$ = STRING$(16, " ")
-GET #4, &H2001, bytes$
 'Set palette(s).
 LOCATE 1, 63
 ERASE colour
 FOR c = 0 TO 15
-   GET #4, &H3F01 + c, byte$
-   r = ASC(byte$) AND 15
+   r = vram(&H3F00 + c) AND 15
    colour(r) = c
    IF palemu = 1 THEN PALETTE c, 65536 * pal(r, 2) + 256 * pal(r, 1) + pal(r, 0)
    'COLOR c
@@ -317,8 +285,7 @@ FOR c = 0 TO 15
 NEXT c
 LOCATE 2, 63
 FOR c = 0 TO 15
-   GET #4, &H3F11 + c, byte$
-   r = ASC(byte$) AND 15
+   r = vram(&H3F10 + c) AND 15
    'COLOR colour(r)
    spr(c) = colour(r)
    'PRINT "ß";
@@ -327,62 +294,54 @@ NEXT c
 'Build the 32*30 tile matrix.
 FOR cy = 0 TO 29
    FOR cx = 0 TO 31
-      bk(cx, cy) = ASC(MID$(bytes$, cy * 32 + cx + 1, 1))
+      bk(cx, cy) = vram(&H2000 + cy * 32 + cx)
    NEXT cx
 NEXT cy
-GET #4, &H2401, bytes$
 FOR cy = 0 TO 29
    FOR cx = 32 TO 63
-      bk(cx, cy) = ASC(MID$(bytes$, cy * 32 + cx - 31, 1))
+      bk(cx, cy) = vram(&H2400 + cy * 32 + cx - 32)
    NEXT cx
 NEXT cy
-GET #4, &H2801, bytes$
 FOR cy = 30 TO 59
    FOR cx = 0 TO 31
-      bk(cx, cy) = ASC(MID$(bytes$, (cy - 30) * 32 + cx + 1, 1))
+      bk(cx, cy) = vram(&H2800 + (cy - 30) * 32 + cx)
    NEXT cx
 NEXT cy
-GET #4, &H2C01, bytes$
 FOR cy = 30 TO 59
    FOR cx = 32 TO 63
-      bk(cx, cy) = ASC(MID$(bytes$, (cy - 30) * 32 + cx - 31, 1))
+      bk(cx, cy) = vram(&H2C00 + (cy - 30) * 32 + cx - 32)
    NEXT cx
 NEXT cy
-bytes$ = STRING$(&H40, " ")
-GET #4, &H23C1, bytes$
 FOR cy = 0 TO 7
    FOR cx = 0 TO 7
-      c = ASC(MID$(bytes$, cy * 8 + cx + 1, 1))
+      c = vram(&H23C0 + cy * 8 + cx)
       attr(cx * 2, cy * 2) = c AND 3
       attr(cx * 2 + 1, cy * 2) = (c \ 4) AND 3
       attr(cx * 2, cy * 2 + 1) = (c \ 16) AND 3
       attr(cx * 2 + 1, cy * 2 + 1) = c \ 64
    NEXT cx
 NEXT cy
-GET #4, &H27C1, bytes$
 FOR cy = 0 TO 7
    FOR cx = 8 TO 15
-      c = ASC(MID$(bytes$, cy * 8 + cx - 7, 1))
+      c = vram(&H27C0 + cy * 8 + cx - 8)
       attr(cx * 2, cy * 2) = c AND 3
       attr(cx * 2 + 1, cy * 2) = (c \ 4) AND 3
       attr(cx * 2, cy * 2 + 1) = (c \ 16) AND 3
       attr(cx * 2 + 1, cy * 2 + 1) = c \ 64
    NEXT cx
 NEXT cy
-GET #4, &H2BC1, bytes$
 FOR cy = 8 TO 15
    FOR cx = 0 TO 7
-      c = ASC(MID$(bytes$, (cy - 8) * 8 + cx + 1, 1))
+      c = vram(&H2BC0 + (cy - 8) * 8 + cx)
       attr(cx * 2, cy * 2 - 1) = c AND 3
       attr(cx * 2 + 1, cy * 2 - 1) = (c \ 4) AND 3
       attr(cx * 2, cy * 2) = (c \ 16) AND 3
       attr(cx * 2 + 1, cy * 2) = c \ 64
    NEXT cx
 NEXT cy
-GET #4, &H2FC1, bytes$
 FOR cy = 8 TO 15
    FOR cx = 8 TO 15
-      c = ASC(MID$(bytes$, (cy - 8) * 8 + cx - 7, 1))
+      c = vram(&H2FC0 + (cy - 8) * 8 + cx - 8)
       attr(cx * 2, cy * 2) = c AND 3
       attr(cx * 2 + 1, cy * 2) = (c \ 4) AND 3
       attr(cx * 2, cy * 2 + 1) = (c \ 16) AND 3
@@ -435,12 +394,12 @@ NEXT bb
 asize = (ppu1 AND 32)
 okning = (ppu1 AND 8) * 16
 IF asize = 0 THEN
-   FOR c = 1 TO 253 STEP 4
-      y = ASC(MID$(sprram$, c))
+   FOR c = 0 TO 252 STEP 4
+      y = sprram(c)
       IF y < &HF0 THEN
          y = y + 15
-         x = ASC(MID$(sprram$, c + 3)) + 15
-         attr = ASC(MID$(sprram$, c + 2))
+         x = sprram(c + 3) + 15
+         attr = sprram(c + 2)
          IF (attr AND 128) THEN
             sy = 7: sys = -1
          ELSE
@@ -453,8 +412,8 @@ IF asize = 0 THEN
          END IF
          rp = (attr AND 32)
          rpal = (attr AND 3) * 4
-         a = okning + ((ASC(MID$(sprram$, c + 1, 1)) AND 15) * 8)
-         b = 300 + ((ASC(MID$(sprram$, c + 1, 1)) AND 240) \ 2)
+         a = okning + ((sprram(c + 1) AND 15) * 8)
+         b = 300 + ((sprram(c + 1) AND 240) \ 2)
          FOR cy = sy TO (sy XOR 7) STEP sys
             FOR cx = sx TO (sx XOR 7) STEP sxs
                IF rp = 0 THEN IF POINT(a + cx, b + cy) > 0 THEN PSET (x + ax, y + bx + 1), spr(POINT(a + cx, b + cy) OR rpal)
@@ -468,12 +427,12 @@ IF asize = 0 THEN
    NEXT c
 END IF
 IF asize = 32 THEN
-   FOR c = 1 TO 253 STEP 4
-      y = ASC(MID$(sprram$, c))
+   FOR c = 0 TO 252 STEP 4
+      y = sprram(c)
       IF y < &HF0 THEN
       y = y + 15
-         x = ASC(MID$(sprram$, c + 3)) + 15
-         attr = ASC(MID$(sprram$, c + 2))
+         x = sprram(c + 3) + 15
+         attr = sprram(c + 2)
          IF (attr AND 128) THEN
             sy = 7: sys = -1
          ELSE
@@ -482,8 +441,8 @@ IF asize = 32 THEN
          rp = (attr AND 32)
          rpal = (attr AND 3) * 4
          IF (attr AND 64) = 0 THEN
-            a = okning + ((ASC(MID$(sprram$, c + 1, 1)) AND 15) * 8)
-            b = 300 + ((ASC(MID$(sprram$, c + 1, 1)) AND 240) \ 2)
+            a = okning + ((sprram(c + 1) AND 15) * 8)
+            b = 300 + ((sprram(c + 1) AND 240) \ 2)
             FOR spr = 8 TO 0 STEP -8
             FOR cy = sy TO (sy XOR 7) STEP sys
                FOR cx = 0 TO 7
@@ -513,10 +472,10 @@ byte$ = " "
 'ut = 1
 'OPEN "debug.log" FOR BINARY AS #9
 DO
-GET #2, pc, byte$
+byte% = anybyte(pc)
 'Note! May want to place the most common ones first
-SELECT CASE ASC(byte$)
-   CASE &HA9: op.lda (pc): pc = pc + 1: s = s + 2
+SELECT CASE byte%
+   CASE &HA9: pc = pc + 1: op.lda (pc): s = s + 2
    CASE &HA5: op.lda (getbyte): s = s + 3
    CASE &HB5: op.lda (zpx): s = s + 4
    CASE &HAD: op.lda (abso): s = s + 4
@@ -570,13 +529,13 @@ SELECT CASE ASC(byte$)
    CASE &H94: op.sty (zpx): s = s + 4
    CASE &H8C: op.sty (abso): s = s + 4
 
-   CASE &HA2: op.ldx (pc): pc = pc + 1: s = s + 2
+   CASE &HA2: pc = pc + 1: op.ldx (pc): s = s + 2
    CASE &HA6: op.ldx (getbyte): s = s + 3
    CASE &HB6: op.ldx (zpy): s = s + 4
    CASE &HAE: op.ldx (abso): s = s + 4
    CASE &HBE: op.ldx (absy): s = s + 4
 
-   CASE &HA0: op.ldy (pc): pc = pc + 1: s = s + 2
+   CASE &HA0: pc = pc + 1: op.ldy (pc): s = s + 2
    CASE &HA4: op.ldy (getbyte): s = s + 3
    CASE &HB4: op.ldy (zpx): s = s + 4
    CASE &HAC: op.ldy (abso): s = s + 4
@@ -610,7 +569,7 @@ SELECT CASE ASC(byte$)
    CASE &HE: op.asl (abso): s = s + 6
    CASE &H1E: op.asl (absx): s = s + 7
 
-   CASE &H29: op.and (pc): pc = pc + 1: s = s + 2
+   CASE &H29: pc = pc + 1: op.and (pc): s = s + 2
    CASE &H25: op.and (getbyte): s = s + 3
    CASE &H35: op.and (zpx): s = s + 4
    CASE &H2D: op.and (abso): s = s + 4
@@ -619,7 +578,7 @@ SELECT CASE ASC(byte$)
    CASE &H21: op.and (pre): s = s + 6
    CASE &H31: op.and (post): s = s + 5
 
-   CASE &H9: op.ora (pc): pc = pc + 1: s = s + 2
+   CASE &H9: pc = pc + 1: op.ora (pc): s = s + 2
    CASE &H5: op.ora (getbyte): s = s + 3
    CASE &H15: op.ora (zpx): s = s + 4
    CASE &HD: op.ora (abso): s = s + 4
@@ -628,7 +587,7 @@ SELECT CASE ASC(byte$)
    CASE &H1: op.ora (pre): s = s + 6
    CASE &H11: op.ora (post): s = s + 5
 
-   CASE &H49: op.eor (pc): pc = pc + 1: s = s + 2
+   CASE &H49: pc = pc + 1: op.eor (pc): s = s + 2
    CASE &H45: op.eor (getbyte): s = s + 3
    CASE &H55: op.eor (zpx): s = s + 4
    CASE &H4D: op.eor (abso): s = s + 4
@@ -680,7 +639,7 @@ SELECT CASE ASC(byte$)
 
    CASE &H60: op.rts
 
-   CASE &HC9: op.cmp (pc): pc = pc + 1: s = s + 2
+   CASE &HC9: pc = pc + 1: op.cmp (pc): s = s + 2
    CASE &HC5: op.cmp (getbyte): s = s + 3
    CASE &HD5: op.cmp (zpx): s = s + 4
    CASE &HCD: op.cmp (abso): s = s + 4
@@ -689,18 +648,18 @@ SELECT CASE ASC(byte$)
    CASE &HC1: op.cmp (pre): s = s + 6
    CASE &HD1: op.cmp (post): s = s + 5
 
-   CASE &HE0: op.cpx (pc): pc = pc + 1: s = s + 2
+   CASE &HE0: pc = pc + 1: op.cpx (pc): s = s + 2
    CASE &HE4: op.cpx (getbyte): s = s + 3
    CASE &HEC: op.cpx (abso): s = s + 4
   
-   CASE &HC0: op.cpy (pc): pc = pc + 1: s = s + 2
+   CASE &HC0: pc = pc + 1: op.cpy (pc): s = s + 2
    CASE &HC4: op.cpy (getbyte): s = s + 3
    CASE &HCC: op.cpy (abso): s = s + 4
   
    CASE &H24: op.bit (getbyte): s = s + 3
    CASE &H2C: op.bit (abso): s = s + 4
 
-   CASE &H69: op.adc (pc): pc = pc + 1: s = s + 2
+   CASE &H69: pc = pc + 1: op.adc (pc): s = s + 2
    CASE &H65: op.adc (getbyte): s = s + 3
    CASE &H75: op.adc (zpx): s = s + 4
    CASE &H6D: op.adc (abso): s = s + 4
@@ -709,7 +668,7 @@ SELECT CASE ASC(byte$)
    CASE &H61: op.adc (pre): s = s + 6
    CASE &H71: op.adc (post): s = s + 5
 
-   CASE &HE9: op.sbc (pc): pc = pc + 1: s = s + 2
+   CASE &HE9: pc = pc + 1: op.sbc (pc): s = s + 2
    CASE &HE5: op.sbc (getbyte): s = s + 3
    CASE &HF5: op.sbc (zpx): s = s + 4
    CASE &HED: op.sbc (abso): s = s + 4
@@ -729,14 +688,14 @@ IF s > 113.85 THEN
    lines = lines + 1
    IF (ppustat AND 64) = 0 THEN
       IF (ppu2 AND 16) THEN
-         IF ASC(MID$(sprram$, 1, 1)) + 1 = lines THEN ppustat = ppustat OR 64
+         IF sprram(0) + 1 = lines THEN ppustat = ppustat OR 64
       END IF
    END IF
    IF lines = 224 THEN vb
    IF lines = 262 THEN vb: lines = 0
 END IF
 
-IF ut = 1 THEN utskrift
+
 SELECT CASE INKEY$
    CASE "j": pc = 53332
    CASE "o", "i": ut = ut XOR 1
@@ -762,7 +721,7 @@ END SELECT
 'DO WHILE INKEY$ = "": LOOP
 'DO WHILE INKEY$ = "": LOOP
 'DO WHILE INKEY$ = "": LOOP
-IF pc = bpoint THEN ut = 1
+pc = pc + 1
 'patterntables
 'o$ = CHR$(pc \ 256)'High byte pc
 'PUT #9, , o$
@@ -774,11 +733,16 @@ IF pc = bpoint THEN ut = 1
 'PUT #9, , o$
 'o$ = CHR$(reg.y)'Y-register
 'PUT #9, , o$
+'o$ = CHR$(reg.sp)'SP-register
+'PUT #9, , o$
 'o$ = CHR$(reg.s)'Status-register
 'PUT #9, , o$
+'o$ = CHR$(byte%)'opcode
+'PUT #9, , o$
 
-pc = pc + 1
 
+IF pc = bpoint THEN ut = 1
+IF ut = 1 THEN utskrift
 
 LOOP
 
@@ -916,8 +880,7 @@ END FUNCTION
 
 FUNCTION getbyte%
 pc = pc + 1
-GET #2, pc, byte$
-getbyte = ASC(byte$)
+getbyte% = anybyte(pc)
 END FUNCTION
 
 SUB hagla (x, y, text$)
@@ -972,60 +935,46 @@ SUB header
 'Read the header to check mapper and rom size
 'Currently only mapper 0 is supported so mostly just need
 'to check the number of prg banks
-bytes$ = STRING$(32767, CHR$(0))
-PUT #2, 1, bytes$
-PUT #2, 32768, bytes$
-PUT #4, 1, bytes$
 
 GET #1, 5, byte$
-bytes$ = ""
 prgs = ASC(byte$)
 GET #1, 7, byte$
 mirroring = ASC(byte$) AND 1
-bytes$ = STRING$(16384, " ")
-IF prgs = 1 THEN
-   GET #1, 17, bytes$             'Read a prg bank
-   PUT #2, 32769, bytes$          'Write it to $8000
-   PUT #2, 49153, bytes$          'and $C000
-   bytes$ = STRING$(8192, " ")
-   GET #1, 16401, bytes$          'Read pattern tables
-   PUT #4, 1, bytes$              'Write to VRAM
-ELSEIF prgs = 2 THEN
-   GET #1, 17, bytes$             'Read a prg bank
-   PUT #2, 32769, bytes$          'Write it $8000
-   GET #1, 16401, bytes$          'Read another one
-   PUT #2, 49153, bytes$          'Write it to $C000
-   bytes$ = STRING$(8192, " ")
-   GET #1, 32785, bytes$          'Read pattern tables
-   PUT #4, 1, bytes$              'Write to VRAM
-ELSE
+
+IF prgs > 2 THEN
    SCREEN 0
    PRINT "Unsupported mapper, or not a NES-file."
-   CLOSE : CLOSE : CLOSE
    END
 END IF
-a = getbyte
-'Reset vector: FFFC (+1)
+
+posi = 17
+FOR x = 0 TO 16383
+   GET #1, posi, byte$
+   bank1(x) = ASC(byte$)                  'Read prg bank 1
+   IF prgs = 1 THEN bank2(x) = ASC(byte$) 'Bank 2 is the same
+   posi = posi + 1
+NEXT x
+IF prgs = 2 THEN                          'Bank 2 is different
+   FOR x = 0 TO 16383
+      GET #1, posi, byte$
+      bank2(x) = ASC(byte$)
+      posi = posi + 1
+   NEXT x
+END IF
+
+FOR x = 0 TO 8191                         'Read pattern tables
+   GET #1, posi, byte$
+   vram(x) = ASC(byte$)
+   posi = posi + 1
+NEXT x
+'Reset vector: FFFC
 'Check reset position:
-byte$ = " "
-GET #2, 65533, byte$
-a = ASC(byte$)
-GET #2, 65534, byte$
-b = ASC(byte$)
-pc = a + b * 256 + 1
-GET #2, 65531, byte$
-a = ASC(byte$)
-GET #2, 65532, byte$
-b = ASC(byte$)
-a = a + b * 256
-nmi = a
-GET #2, 65535, byte$
-a = ASC(byte$)
-GET #2, 65536, byte$
-b = ASC(byte$)
-a = a + b * 256
-brk = a
-byte$ = " "
+pc = bank2(16381)
+pc = pc * 256 + bank2(16380)
+nmi = bank2(16379)
+nmi = nmi * 256 + bank2(16378)
+brk = bank2(16383)
+brk = brk * 256 + bank2(16382)
 COLOR 13
 hagla 306, 1, "mapper:"
 hagla 297, 9, "mirroring:"
@@ -1243,7 +1192,7 @@ IF (reg.s AND 4) = 0 THEN
    push a%
    push reg.s OR 16             'Push status with B set
    reg.s = reg.s OR 4
-   pc = brk
+   pc = brk - 1
 END IF
 END SUB
 
@@ -1397,13 +1346,13 @@ SUB op.jmp (typ AS LONG)
 'Note that pc is incremented by 1 after each instruction
 SELECT CASE typ
    CASE 1                          'Direct. Two operand bytes.
-      pc = abso
+      pc = abso - 1
       s = s + 3
    CASE 2                          'Indirect. Two operand bytes.
       b& = abso
       a = anybyte(b&)
       b = anybyte(b& + 1)
-      pc = a + b * 256
+      pc = a + b * 256 - 1
       s = s + 5
 END SELECT
 END SUB
@@ -1412,10 +1361,9 @@ SUB op.jsr
 'JSR: Push pc and jump
 a = getbyte
 b = getbyte
-pc = pc - 1
 push ((pc AND 65280) / 256)
 push (pc AND 255)
-pc = a + b * 256
+pc = a + b * 256 - 1
 s = s + 6
 END SUB
 
@@ -1536,7 +1484,7 @@ SUB op.rts
 'RTS: Pull pc
 a = pop              'First the low byte
 b = pop              'Then the high one :)
-pc = a + b * 256 + 1
+pc = a + b * 256
 s = s + 6
 END SUB
 
@@ -1652,22 +1600,21 @@ END SUB
 SUB patterntables
 DIM linje(7)
 'Draw pattern tables from VRAM
-bytes$ = STRING$(8192, " ")
-GET #4, 1, bytes$
-a = 1
+a = 0
 FOR table = 0 TO 1
    FOR ty = 0 TO 120 STEP 8
       FOR tx = 0 TO 120 STEP 8
          FOR y = 0 TO 7
             FOR planes = 0 TO 1
-               IF (ASC(MID$(bytes$, a + planes * 8, 1)) AND 128) = 128 THEN linje(0) = linje(0) + planes + 1
-               IF (ASC(MID$(bytes$, a + planes * 8, 1)) AND 64) = 64 THEN linje(1) = linje(1) + planes + 1
-               IF (ASC(MID$(bytes$, a + planes * 8, 1)) AND 32) = 32 THEN linje(2) = linje(2) + planes + 1
-               IF (ASC(MID$(bytes$, a + planes * 8, 1)) AND 16) = 16 THEN linje(3) = linje(3) + planes + 1
-               IF (ASC(MID$(bytes$, a + planes * 8, 1)) AND 8) = 8 THEN linje(4) = linje(4) + planes + 1
-               IF (ASC(MID$(bytes$, a + planes * 8, 1)) AND 4) = 4 THEN linje(5) = linje(5) + planes + 1
-               IF (ASC(MID$(bytes$, a + planes * 8, 1)) AND 2) = 2 THEN linje(6) = linje(6) + planes + 1
-               IF (ASC(MID$(bytes$, a + planes * 8, 1)) AND 1) = 1 THEN linje(7) = linje(7) + planes + 1
+               b% = vram(a + planes * 8)
+               IF b% AND 128 THEN linje(0) = linje(0) + planes + 1
+               IF b% AND 64 THEN linje(1) = linje(1) + planes + 1
+               IF b% AND 32 THEN linje(2) = linje(2) + planes + 1
+               IF b% AND 16 THEN linje(3) = linje(3) + planes + 1
+               IF b% AND 8 THEN linje(4) = linje(4) + planes + 1
+               IF b% AND 4 THEN linje(5) = linje(5) + planes + 1
+               IF b% AND 2 THEN linje(6) = linje(6) + planes + 1
+               IF b% AND 1 THEN linje(7) = linje(7) + planes + 1
             NEXT planes
             FOR b = 0 TO 7
                PSET (table * 128 + tx + b, 300 + ty + y), linje(b)
@@ -1682,20 +1629,17 @@ NEXT table
 
 END SUB
 
-FUNCTION pop%
+ FUNCTION pop%
 reg.sp = reg.sp + 1
 IF reg.sp = 256 THEN reg.sp = 0
-GET #2, 257 + reg.sp, byte$
-pop% = ASC(byte$)
+pop% = ram(256 + reg.sp)
 END FUNCTION
 
 FUNCTION post&
 c = getbyte
 a = anybyte(INT(c))
 b = anybyte(c + 1)
-a = a + (b * 256) + reg.y
-IF (a AND 65536) THEN a = a AND 65535
-post = a
+post = (a + (b * 256) + reg.y) AND 65535
 END FUNCTION
 
 FUNCTION pre&
@@ -1707,23 +1651,21 @@ b = anybyte(c + 1)
 pre = a + b * 256
 END FUNCTION
 
-SUB push (r)
-byte$ = CHR$(r)
-PUT #2, 257 + reg.sp, byte$
+SUB push (r AS INTEGER)
+ram(256 + reg.sp) = r
 reg.sp = reg.sp - 1
 IF reg.sp < 0 THEN reg.sp = 255
 END SUB
 
 SUB putbyte (byte%, posi AS LONG)
-'Check if we are writing to some special address
 IF posi >= &H2000 THEN
    IF posi <= &H2007 THEN
       IF posi = &H2000 THEN ppu1 = byte%
       IF posi = &H2001 THEN ppu2 = byte%
       IF posi = &H2003 THEN sprramposi = byte%
       IF posi = &H2004 THEN
+         sprram(sprramposi) = byte%
          sprramposi = sprramposi + 1
-         MID$(sprram$, sprramposi, 1) = CHR$(byte%)
       END IF
       IF posi = &H2005 THEN
          IF scrollwrite = 1 THEN
@@ -1741,8 +1683,7 @@ IF posi >= &H2000 THEN
       IF posi = &H2007 THEN        'Write to VRAM, increment "pointer"
          okn = 1
          IF (ppu1 AND 4) THEN okn = 32
-         byte$ = CHR$(byte%)
-         PUT #4, vramposi + 1, byte$
+         vram(vramposi) = byte%
          vramposi = vramposi + okn
          IF vramposi > 32767 THEN vramposi = vramposi - 32768
 
@@ -1756,8 +1697,10 @@ IF posi >= &H4000 THEN
 IF posi <= &H4017 THEN
 
    IF posi = &H4014 THEN
-      c = byte% * 256 + 1
-      GET #2, c, sprram$
+      c = byte% * 256
+      FOR x = 0 TO 255
+         sprram(x) = ram(c + x)
+      NEXT x
       s = s + 513
    END IF
    IF posi = &H4016 THEN
@@ -1772,9 +1715,7 @@ IF posi <= &H4017 THEN
 
 END IF
 END IF
-posi = posi + 1
-byte$ = CHR$(byte%)
-PUT #2, posi, byte$
+ram(posi) = byte%
 'PUT #2, posi + &H800, byte$
 'PUT #2, posi + &H1000, byte$
 'PUT #2, posi + &H1800, byte$
@@ -1848,7 +1789,7 @@ IF vblank = 0 THEN
       push reg.s        'Push status
       reg.s = reg.s OR 4
       'opcode$ = "vblank: jumping to " + HEX$(nmi)
-      pc = nmi
+      pc = nmi - 1
    END IF
    frame = frame + 1
    IF frame = skip THEN frame = 0: crappygfxengine 'Draw graphics...
