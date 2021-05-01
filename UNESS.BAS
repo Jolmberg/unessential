@@ -476,7 +476,7 @@ byte% = anybyte(pc)
 'Note! May want to place the most common ones first
 SELECT CASE byte%
    CASE &HA9: pc = pc + 1: op.lda (pc): s = s + 2
-   CASE &HA5: op.lda (getbyte): s = s + 3
+   CASE &HA5: pc = pc + 1: op.lda (anybyte(pc)): s = s + 3
    CASE &HB5: op.lda (zpx): s = s + 4
    CASE &HAD: op.lda (abso): s = s + 4
    CASE &HBD: op.lda (absx): s = s + 4
@@ -500,12 +500,12 @@ SELECT CASE byte%
    CASE &H9A: op.txs
    CASE &HBA: op.tsx
   
-   CASE &HE6: op.inc (getbyte): s = s + 5
+   CASE &HE6: pc = pc + 1: op.inc (anybyte(pc)): s = s + 5
    CASE &HF6: op.inc (zpx): s = s + 6
    CASE &HEE: op.inc (abso): s = s + 6
    CASE &HFE: op.inc (absx): s = s + 7
 
-   CASE &HC6: op.dec (getbyte): s = s + 5
+   CASE &HC6: pc = pc + 1: op.dec (anybyte(pc)): s = s + 5
    CASE &HD6: op.dec (zpx): s = s + 6
    CASE &HCE: op.dec (abso): s = s + 6
    CASE &HDE: op.dec (absx): s = s + 7
@@ -513,7 +513,7 @@ SELECT CASE byte%
    CASE &HE8: op.inx
    CASE &HC8: op.iny
 
-   CASE &H85: op.sta (getbyte): s = s + 2
+   CASE &H85: pc = pc + 1: op.sta (anybyte(pc)): s = s + 2
    CASE &H95: op.sta (zpx): s = s + 3
    CASE &H8D: op.sta (abso): s = s + 3
    CASE &H9D: op.sta (absx): s = s + 4
@@ -521,22 +521,22 @@ SELECT CASE byte%
    CASE &H81: op.sta (pre): s = s + 6
    CASE &H91: op.sta (post): s = s + 6
 
-   CASE &H86: op.stx (getbyte): s = s + 3
+   CASE &H86: pc = pc + 1: op.stx (anybyte(pc)): s = s + 3
    CASE &H96: op.stx (zpy): s = s + 4
    CASE &H8E: op.stx (abso): s = s + 4
   
-   CASE &H84: op.sty (getbyte): s = s + 3
+   CASE &H84: pc = pc + 1: op.sty (anybyte(pc)): s = s + 3
    CASE &H94: op.sty (zpx): s = s + 4
    CASE &H8C: op.sty (abso): s = s + 4
 
    CASE &HA2: pc = pc + 1: op.ldx (pc): s = s + 2
-   CASE &HA6: op.ldx (getbyte): s = s + 3
+   CASE &HA6: pc = pc + 1: op.ldx (anybyte(pc)): s = s + 3
    CASE &HB6: op.ldx (zpy): s = s + 4
    CASE &HAE: op.ldx (abso): s = s + 4
    CASE &HBE: op.ldx (absy): s = s + 4
 
    CASE &HA0: pc = pc + 1: op.ldy (pc): s = s + 2
-   CASE &HA4: op.ldy (getbyte): s = s + 3
+   CASE &HA4: pc = pc + 1: op.ldy (anybyte(pc)): s = s + 3
    CASE &HB4: op.ldy (zpx): s = s + 4
    CASE &HAC: op.ldy (abso): s = s + 4
    CASE &HBC: op.ldy (absx): s = s + 4
@@ -553,7 +553,7 @@ SELECT CASE byte%
    reg.a = reg.a \ 2: reg.s = reg.s AND 125
    IF reg.a = 0 THEN reg.s = reg.s OR 2
    s = s + 2
-   CASE &H46: op.lsr (getbyte): s = s + 5
+   CASE &H46: pc = pc + 1: op.lsr (anybyte(pc)): s = s + 5
    CASE &H56: op.lsr (zpx): s = s + 6
    CASE &H4E: op.lsr (abso): s = s + 6
    CASE &H5E: op.lsr (absx): s = s + 7
@@ -564,13 +564,13 @@ SELECT CASE byte%
       IF reg.a = 0 THEN reg.s = reg.s OR 2
       IF reg.a > 127 THEN reg.s = reg.s OR 128
       s = s + 2
-   CASE &H6: op.asl (getbyte): s = s + 5
+   CASE &H6: pc = pc + 1: op.asl (anybyte(pc)): s = s + 5
    CASE &H16: op.asl (zpx): s = s + 6
    CASE &HE: op.asl (abso): s = s + 6
    CASE &H1E: op.asl (absx): s = s + 7
 
    CASE &H29: pc = pc + 1: op.and (pc): s = s + 2
-   CASE &H25: op.and (getbyte): s = s + 3
+   CASE &H25: pc = pc + 1: op.and (anybyte(pc)): s = s + 3
    CASE &H35: op.and (zpx): s = s + 4
    CASE &H2D: op.and (abso): s = s + 4
    CASE &H3D: op.and (absx): s = s + 4
@@ -579,7 +579,7 @@ SELECT CASE byte%
    CASE &H31: op.and (post): s = s + 5
 
    CASE &H9: pc = pc + 1: op.ora (pc): s = s + 2
-   CASE &H5: op.ora (getbyte): s = s + 3
+   CASE &H5: pc = pc + 1: op.ora (anybyte(pc)): s = s + 3
    CASE &H15: op.ora (zpx): s = s + 4
    CASE &HD: op.ora (abso): s = s + 4
    CASE &H1D: op.ora (absx): s = s + 4
@@ -588,7 +588,7 @@ SELECT CASE byte%
    CASE &H11: op.ora (post): s = s + 5
 
    CASE &H49: pc = pc + 1: op.eor (pc): s = s + 2
-   CASE &H45: op.eor (getbyte): s = s + 3
+   CASE &H45: pc = pc + 1: op.eor (anybyte(pc)): s = s + 3
    CASE &H55: op.eor (zpx): s = s + 4
    CASE &H4D: op.eor (abso): s = s + 4
    CASE &H5D: op.eor (absx): s = s + 4
@@ -605,7 +605,7 @@ SELECT CASE byte%
       IF reg.a = 0 THEN reg.s = reg.s OR 2
       IF reg.a > 127 THEN reg.s = reg.s OR 128
       s = s + 2
-   CASE &H26: op.rol (getbyte): s = s + 5
+   CASE &H26: pc = pc + 1: op.rol (anybyte(pc)): s = s + 5
    CASE &H36: op.rol (zpx): s = s + 6
    CASE &H2E: op.rol (abso): s = s + 6
    CASE &H3E: op.rol (absx): s = s + 7
@@ -619,7 +619,7 @@ SELECT CASE byte%
       IF reg.a = 0 THEN reg.s = reg.s OR 2
       IF reg.a > 127 THEN reg.s = reg.s OR 128
       s = s + 2
-   CASE &H66: op.ror (getbyte): s = s + 5
+   CASE &H66: pc = pc + 1: op.ror (anybyte(pc)): s = s + 5
    CASE &H76: op.ror (zpx): s = s + 6
    CASE &H6E: op.ror (abso): s = s + 6
    CASE &H7E: op.ror (absx): s = s + 7
@@ -640,7 +640,7 @@ SELECT CASE byte%
    CASE &H60: op.rts
 
    CASE &HC9: pc = pc + 1: op.cmp (pc): s = s + 2
-   CASE &HC5: op.cmp (getbyte): s = s + 3
+   CASE &HC5: pc = pc + 1: op.cmp (anybyte(pc)): s = s + 3
    CASE &HD5: op.cmp (zpx): s = s + 4
    CASE &HCD: op.cmp (abso): s = s + 4
    CASE &HDD: op.cmp (absx): s = s + 4
@@ -649,18 +649,18 @@ SELECT CASE byte%
    CASE &HD1: op.cmp (post): s = s + 5
 
    CASE &HE0: pc = pc + 1: op.cpx (pc): s = s + 2
-   CASE &HE4: op.cpx (getbyte): s = s + 3
+   CASE &HE4: pc = pc + 1: op.cpx (anybyte(pc)): s = s + 3
    CASE &HEC: op.cpx (abso): s = s + 4
   
    CASE &HC0: pc = pc + 1: op.cpy (pc): s = s + 2
-   CASE &HC4: op.cpy (getbyte): s = s + 3
+   CASE &HC4: pc = pc + 1: op.cpy (anybyte(pc)): s = s + 3
    CASE &HCC: op.cpy (abso): s = s + 4
   
-   CASE &H24: op.bit (getbyte): s = s + 3
+   CASE &H24: pc = pc + 1: op.bit (anybyte(pc)): s = s + 3
    CASE &H2C: op.bit (abso): s = s + 4
 
    CASE &H69: pc = pc + 1: op.adc (pc): s = s + 2
-   CASE &H65: op.adc (getbyte): s = s + 3
+   CASE &H65: pc = pc + 1: op.adc (anybyte(pc)): s = s + 3
    CASE &H75: op.adc (zpx): s = s + 4
    CASE &H6D: op.adc (abso): s = s + 4
    CASE &H7D: op.adc (absx): s = s + 4
@@ -669,7 +669,7 @@ SELECT CASE byte%
    CASE &H71: op.adc (post): s = s + 5
 
    CASE &HE9: pc = pc + 1: op.sbc (pc): s = s + 2
-   CASE &HE5: op.sbc (getbyte): s = s + 3
+   CASE &HE5: pc = pc + 1: op.sbc (anybyte(pc)): s = s + 3
    CASE &HF5: op.sbc (zpx): s = s + 4
    CASE &HED: op.sbc (abso): s = s + 4
    CASE &HFD: op.sbc (absx): s = s + 4
@@ -1359,8 +1359,10 @@ END SUB
 
 SUB op.jsr
 'JSR: Push pc and jump
-a = getbyte
-b = getbyte
+pc = pc + 1
+a = anybyte(pc)
+pc = pc + 1
+b = anybyte(pc)
 push ((pc AND 65280) / 256)
 push (pc AND 255)
 pc = a + b * 256 - 1
@@ -1636,14 +1638,16 @@ pop% = ram(256 + reg.sp)
 END FUNCTION
 
 FUNCTION post&
-c = getbyte
+pc = pc + 1
+c = anybyte(pc)
 a = anybyte(INT(c))
 b = anybyte(c + 1)
 post = (a + (b * 256) + reg.y) AND 65535
 END FUNCTION
 
 FUNCTION pre&
-c = getbyte
+pc = pc + 1
+c = anybyte(pc)
 c = c + reg.x
 IF (c AND 256) THEN c = c AND 255
 a = anybyte(INT(c))
@@ -1779,20 +1783,23 @@ END IF
 END SUB
 
 FUNCTION zp&
-a = getbyte
+pc = pc + 1
+a = anybyte(pc)
 zp = a
 END FUNCTION
 
 DEFINT A
 FUNCTION zpx&
-a = getbyte
+pc = pc + 1
+a = anybyte(pc)
 a = a + reg.x
 IF (a AND 256) THEN a = a AND 255
 zpx = a
 END FUNCTION
 
 FUNCTION zpy&
-a = getbyte
+pc = pc + 1
+a = anybyte(pc)
 a = a + reg.y
 IF (a AND 256) THEN a = a AND 255
 zpy = a
