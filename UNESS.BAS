@@ -1,3 +1,14 @@
+DECLARE FUNCTION optostr$ ()
+DECLARE FUNCTION str.imm$ ()
+DECLARE FUNCTION str.zp$ ()
+DECLARE FUNCTION str.zpx$ ()
+DECLARE FUNCTION str.zpy$ ()
+DECLARE FUNCTION str.abso$ ()
+DECLARE FUNCTION str.absx$ ()
+DECLARE FUNCTION str.absy$ ()
+DECLARE FUNCTION str.pre$ ()
+DECLARE FUNCTION str.post$ ()
+DECLARE FUNCTION hexpad$ (n&, p&)
 DECLARE SUB save ()
 DECLARE SUB vb ()
 DECLARE SUB config ()
@@ -79,7 +90,7 @@ DIM SHARED reg.a AS INTEGER, reg.x AS INTEGER, reg.y AS INTEGER
 DIM SHARED reg.s AS INTEGER, pc AS LONG, reg.sp AS INTEGER
 DIM SHARED nmi AS LONG, brk AS LONG
 DIM SHARED fil$, byte$, opcode$
-DIM SHARED ut AS INTEGER
+DIM SHARED ut AS INTEGER, utstep AS INTEGER
 DIM SHARED bokstav(52, 5) AS INTEGER, rabies
 DIM SHARED vramposi AS INTEGER, vblank AS INTEGER, ppu1 AS INTEGER
 DIM SHARED sprramposi AS INTEGER, sprram(256) AS INTEGER
@@ -109,6 +120,7 @@ skip = 2
 ' Comments translated into English
 ' BVC/BVS fixed, were copies of BCC/BCS
 ' Use arrays instead of files to emulate memory
+' Instruction printing works again
 '
 'General info:
 'opcode functions are called op.???(?).
@@ -465,6 +477,7 @@ byte$ = " "
 'OPEN "debug.log" FOR BINARY AS #9
 DO
 byte% = anybyte(pc)
+IF ut = 1 THEN utskrift
 'Note! May want to place the most common ones first
 SELECT CASE byte%
    CASE &HA9: pc = pc + 1: op.lda (pc): s = s + 2
@@ -671,9 +684,14 @@ SELECT CASE byte%
   
    CASE &H40: op.rti
 
-   CASE &HEA: opcode$ = "NOP": s = s + 2
+   CASE &HEA: s = s + 2
   
-   CASE ELSE: opcode$ = "Unimplemented :(": ut = 1
+   CASE ELSE
+      utstep = 1
+      IF ut = 0 THEN
+         ut = 1
+         utskrift
+      END IF
 END SELECT
 IF s > 113.85 THEN
    s = s - 113.85
@@ -702,7 +720,8 @@ SELECT CASE INKEY$
    CASE "x": joy1emu = joy1emu XOR 2: PSET (19, 284), POINT(19, 284) XOR 9
    CASE "c": joy1emu = joy1emu XOR 4: PSET (14, 284), POINT(14, 284) XOR 9
    CASE "v": joy1emu = joy1emu XOR 8: PSET (16, 284), POINT(16, 284) XOR 9
-   CASE "s": save
+   CASE "s": utstep = 1: ut = 1
+   CASE "r": utstep = 0
    CASE CHR$(0) + "H": joy1emu = joy1emu XOR 16: PSET (10, 282), POINT(10, 282) XOR 9
    CASE CHR$(0) + "P": joy1emu = joy1emu XOR 32: PSET (10, 284), POINT(10, 284) XOR 9
    CASE CHR$(0) + "K": joy1emu = joy1emu XOR 64: PSET (9, 283), POINT(9, 283) XOR 9
@@ -734,7 +753,6 @@ pc = pc + 1
 
 
 IF pc = bpoint THEN ut = 1
-IF ut = 1 THEN utskrift
 
 LOOP
 
@@ -1036,7 +1054,14 @@ NEXT b
 
 END SUB
 
-DEFSNG C, R
+DEFINT A
+FUNCTION hexpad$ (n&, p&)
+z$ = "0000"
+h$ = LCASE$(HEX$(n&))
+IF LEN(h$) < p& THEN hexpad = LEFT$(z$, p& - LEN(h$)) + h$ ELSE hexpad = h$
+END FUNCTION
+
+DEFSNG A, C, R
 SUB loadfont
 OPEN "FONT.DAT" FOR BINARY AS #7
 byte$ = " "
@@ -1055,7 +1080,7 @@ END SUB
 DEFINT C, R
 SUB moveup
 DIM block(180, 14)
-FOR y = 280 TO 392 STEP 14
+FOR y = 14 TO 392 STEP 14
    GET (460, y)-(639, y + 14), block
    PUT (460, y - 14), block, PSET
 NEXT y
@@ -1527,6 +1552,200 @@ IF reg.a > 127 THEN reg.s = reg.s OR 128
 s = s + 2
 END SUB
 
+DEFINT A
+FUNCTION optostr$
+'Calling anybyte here (and in the str.* functions) means that any
+'side effects caused by the read (such as clearing bit 7 of $2002)
+'will be triggered for real. This is clearly wrong but it's difficult
+'to imagine it ever being a real problem.
+byte% = anybyte(pc)
+SELECT CASE byte%
+   CASE &HA9: o$ = "LDA" + str.imm
+   CASE &HA5: o$ = "LDA" + str.zp
+   CASE &HB5: o$ = "LDA" + str.zpx
+   CASE &HAD: o$ = "LDA" + str.abso
+   CASE &HBD: o$ = "LDA" + str.absx
+   CASE &HB9: o$ = "LDA" + str.absy
+   CASE &HA1: o$ = "LDA" + str.pre
+   CASE &HB1: o$ = "LDA" + str.post
+
+   CASE &HD0: o$ = "BNE" + str.zp
+   CASE &HF0: o$ = "BEQ" + str.zp
+   CASE &H10: o$ = "BPL" + str.zp
+   CASE &H30: o$ = "BMI" + str.zp
+   CASE &H90: o$ = "BCC" + str.zp
+   CASE &HB0: o$ = "BCS" + str.zp
+   CASE &H50: o$ = "BVC" + str.zp
+   CASE &H70: o$ = "BVS" + str.zp
+
+   CASE &HAA: o$ = "TAX"
+   CASE &H8A: o$ = "TXA"
+   CASE &HA8: o$ = "TAY"
+   CASE &H98: o$ = "TYA"
+   CASE &H9A: o$ = "TXS"
+   CASE &HBA: o$ = "TSX"
+
+   CASE &HE6: o$ = "INC" + str.zp
+   CASE &HF6: o$ = "INC" + str.zpx
+   CASE &HEE: o$ = "INC" + str.abso
+   CASE &HFE: o$ = "INC" + str.absx
+
+   CASE &HC6: o$ = "DEC" + str.zp
+   CASE &HD6: o$ = "DEC" + str.zpx
+   CASE &HCE: o$ = "DEC" + str.abso
+   CASE &HDE: o$ = "DEC" + str.absx
+
+   CASE &HE8: o$ = "INX"
+   CASE &HC8: o$ = "INY"
+
+   CASE &H85: o$ = "STA" + str.zp
+   CASE &H95: o$ = "STA" + str.zpx
+   CASE &H8D: o$ = "STA" + str.abso
+   CASE &H9D: o$ = "STA" + str.absx
+   CASE &H99: o$ = "STA" + str.absy
+   CASE &H81: o$ = "STA" + str.pre
+   CASE &H91: o$ = "STA" + str.post
+
+   CASE &H86: o$ = "STX" + str.zp
+   CASE &H96: o$ = "STX" + str.zpy
+   CASE &H8E: o$ = "STX" + str.abso
+
+   CASE &H84: o$ = "STY" + str.zp
+   CASE &H94: o$ = "STY" + str.zpx
+   CASE &H8C: o$ = "STY" + str.abso
+
+   CASE &HA2: o$ = "LDX" + str.imm
+   CASE &HA6: o$ = "LDX" + str.zp
+   CASE &HB6: o$ = "LDX" + str.zpy
+   CASE &HAE: o$ = "LDX" + str.abso
+   CASE &HBE: o$ = "LDX" + str.absy
+
+   CASE &HA0: o$ = "LDY" + str.imm
+   CASE &HA4: o$ = "LDY" + str.zp
+   CASE &HB4: o$ = "LDY" + str.zpx
+   CASE &HAC: o$ = "LDY" + str.abso
+   CASE &HBC: o$ = "LDY" + str.absx
+
+   CASE &HCA: o$ = "DEX"
+   CASE &H88: o$ = "DEY"
+
+   CASE &H48: o$ = "PHA"
+   CASE &H68: o$ = "PLA"
+   CASE &H8: o$ = "PHP"
+   CASE &H28: o$ = "PLP"
+
+   CASE &H4A: o$ = "LSR A"
+   CASE &H46: o$ = "LSR" + str.zp
+   CASE &H56: o$ = "LSR" + str.zpx
+   CASE &H4E: o$ = "LSR" + str.abso
+   CASE &H5E: o$ = "LSR" + str.absx
+
+   CASE &HA: o$ = "ASL A"
+   CASE &H6: o$ = "ASL" + str.zp
+   CASE &H16: o$ = "ASL" + str.zpx
+   CASE &HE: o$ = "ASL" + str.abso
+   CASE &H1E: o$ = "ASL" + str.absx
+
+   CASE &H29: o$ = "AND" + str.imm
+   CASE &H25: o$ = "AND" + str.zp
+   CASE &H35: o$ = "AND" + str.zpx
+   CASE &H2D: o$ = "AND" + str.abso
+   CASE &H3D: o$ = "AND" + str.absx
+   CASE &H39: o$ = "AND" + str.absy
+   CASE &H21: o$ = "AND" + str.pre
+   CASE &H31: o$ = "AND" + str.post
+
+   CASE &H9: o$ = "ORA" + str.imm
+   CASE &H5: o$ = "ORA" + str.zp
+   CASE &H15: o$ = "ORA" + str.zpx
+   CASE &HD: o$ = "ORA" + str.abso
+   CASE &H1D: o$ = "ORA" + str.absx
+   CASE &H19: o$ = "ORA" + str.absy
+   CASE &H1: o$ = "ORA" + str.pre
+   CASE &H11: o$ = "ORA" + str.post
+
+   CASE &H49: o$ = "EOR" + str.imm
+   CASE &H45: o$ = "EOR" + str.zp
+   CASE &H55: o$ = "EOR" + str.zpx
+   CASE &H4D: o$ = "EOR" + str.abso
+   CASE &H5D: o$ = "EOR" + str.absx
+   CASE &H59: o$ = "EOR" + str.absy
+
+   CASE &H2A: o$ = "ROL A"
+   CASE &H26: o$ = "ROL" + str.zp
+   CASE &H36: o$ = "ROL" + str.zpx
+   CASE &H2E: o$ = "ROL" + str.abso
+   CASE &H3E: o$ = "ROL" + str.absx
+
+   CASE &H6A: o$ = "ROR A"
+   CASE &H66: o$ = "ROR" + str.zp
+   CASE &H76: o$ = "ROR" + str.zpx
+   CASE &H6E: o$ = "ROR" + str.abso
+   CASE &H7E: o$ = "ROR" + str.absx
+
+   CASE &H38: o$ = "SEC"
+   CASE &HF8: o$ = "SED"
+   CASE &H78: o$ = "SEI"
+
+   CASE &H18: o$ = "CLC"
+   CASE &HD8: o$ = "CLD"
+   CASE &H58: o$ = "CLI"
+   CASE &HB8: o$ = "CLV"
+
+   CASE &H4C: o$ = "JMP" + str.abso
+   CASE &H6C: o$ = "JMP (" + RIGHT$(str.abso, 5) + ")"
+   CASE &H20: o$ = "JSR" + str.abso
+
+   CASE &H60: o$ = "RTS"
+
+   CASE &HC9: o$ = "CMP" + str.imm
+   CASE &HC5: o$ = "CMP" + str.zp
+   CASE &HD5: o$ = "CMP" + str.zpx
+   CASE &HCD: o$ = "CMP" + str.abso
+   CASE &HDD: o$ = "CMP" + str.absx
+   CASE &HD9: o$ = "CMP" + str.absy
+   CASE &HC1: o$ = "CMP" + str.pre
+   CASE &HD1: o$ = "CMP" + str.post
+
+   CASE &HE0: o$ = "CPX" + str.imm
+   CASE &HE4: o$ = "CPX" + str.zp
+   CASE &HEC: o$ = "CPX" + str.abso
+
+   CASE &HC0: o$ = "CPY" + str.imm
+   CASE &HC4: o$ = "CPY" + str.zp
+   CASE &HCC: o$ = "CPY" + str.abso
+
+   CASE &H24: o$ = "BIT" + str.zp
+   CASE &H2C: o$ = "BIT" + str.abso
+
+   CASE &H69: o$ = "ADC" + str.imm
+   CASE &H65: o$ = "ADC" + str.zp
+   CASE &H75: o$ = "ADC" + str.zpx
+   CASE &H6D: o$ = "ADC" + str.abso
+   CASE &H7D: o$ = "ADC" + str.absx
+   CASE &H79: o$ = "ADC" + str.absy
+   CASE &H61: o$ = "ADC" + str.pre
+   CASE &H71: o$ = "ADC" + str.post
+
+   CASE &HE9: o$ = "SBC" + str.imm
+   CASE &HE5: o$ = "SBC" + str.zp
+   CASE &HF5: o$ = "SBC" + str.zpx
+   CASE &HED: o$ = "SBC" + str.abso
+   CASE &HFD: o$ = "SBC" + str.absx
+   CASE &HF9: o$ = "SBC" + str.absy
+
+   CASE &H0: o$ = "BRK"
+
+   CASE &H40: o$ = "RTI"
+
+   CASE &HEA: o$ = "NOP"
+
+   CASE ELSE: o$ = "INVALID"
+END SELECT
+optostr$ = o$
+END FUNCTION
+
+DEFSNG A
 SUB patterntables
 DIM linje(7)
 'Draw pattern tables from VRAM
@@ -1645,40 +1864,86 @@ CLOSE #14
 
 END SUB
 
+DEFINT A
+FUNCTION str.abso$
+str.abso = " $" + hexpad$(anybyte(pc + 2), 2) + hexpad$(anybyte(pc + 1), 2)
+END FUNCTION
+
+FUNCTION str.absx$
+str.absx = " $" + hexpad$(anybyte(pc + 2), 2) + hexpad$(anybyte(pc + 1), 2) + ", X"
+END FUNCTION
+
+FUNCTION str.absy$
+str.absy = " $" + hexpad$(anybyte(pc + 2), 2) + hexpad$(anybyte(pc + 1), 2) + ", Y"
+END FUNCTION
+
+FUNCTION str.imm$
+str.imm = " #$" + hexpad$(anybyte(pc + 1), 2)
+END FUNCTION
+
+FUNCTION str.post$
+str.post = " ($" + hexpad$(anybyte(pc + 1), 2) + "), Y"
+END FUNCTION
+
+FUNCTION str.pre$
+str.pre = " ($" + hexpad$(anybyte(pc + 1), 2) + ", X)"
+END FUNCTION
+
+FUNCTION str.zp$
+str.zp = " $" + hexpad$(anybyte(pc + 1), 2)
+END FUNCTION
+
+FUNCTION str.zpx$
+str.zpx = " $" + hexpad$(anybyte(pc + 1), 2) + ", X"
+END FUNCTION
+
+FUNCTION str.zpy$
+str.zpy = " $" + hexpad$(anybyte(pc + 1), 2) + ", Y"
+END FUNCTION
+
+DEFSNG A
 SUB utskrift
-IF INKEY$ <> "" THEN cycles = 27007
 moveup
+COLOR 3
+hagla 460, 409, "a:"
+hagla 485, 409, "x:"
+hagla 512, 409, "y:"
+hagla 538, 409, "sp:"
+hagla 569, 409, "pc:"
 COLOR 9
-hagla 460, 409, LCASE$("$" + HEX$(bytes) + " " + opcode$)
-'PRINT bytes; opcode$
-hagla 460, 416, LCASE$("a:$" + HEX$(reg.a) + " x:$" + HEX$(reg.x) + " y:$" + HEX$(reg.y) + " sp:$" + HEX$(reg.sp) + " pc:$" + HEX$(pc))
-'PRINT "A:"; HEX$(reg.a); " X:"; HEX$(reg.x); " Y:"; HEX$(reg.y); " S:"; HEX$(reg.sp); " PC:"; HEX$(pc); " ";
+hagla 468, 409, "$" + hexpad(INT(reg.a), 2)
+hagla 494, 409, "$" + hexpad(INT(reg.x), 2)
+hagla 520, 409, "$" + hexpad(INT(reg.y), 2)
+hagla 551, 409, "$" + hexpad(INT(reg.sp), 2)
+hagla 582, 409, "$" + hexpad(pc, 4)
 'Status: SV1BDIZC
 COLOR 8
 IF (reg.s AND 1) = 1 THEN COLOR 7
-hagla 635, 416, "c"
+hagla 635, 409, "c"
 COLOR 8
 IF (reg.s AND 2) = 2 THEN COLOR 7
-hagla 630, 416, "z"
+hagla 630, 409, "z"
 COLOR 8
 IF (reg.s AND 4) = 4 THEN COLOR 7
-hagla 628, 416, "i"
+hagla 628, 409, "i"
 COLOR 8
 IF (reg.s AND 8) = 8 THEN COLOR 7
-hagla 623, 416, "d"
+hagla 623, 409, "d"
 COLOR 8
 IF (reg.s AND 16) = 16 THEN COLOR 7
-hagla 618, 416, "b"
+hagla 618, 409, "b"
 COLOR 8
 IF (reg.s AND 64) = 64 THEN COLOR 7
-hagla 613, 416, "v"
+hagla 613, 409, "v"
 COLOR 8
 IF (reg.s AND 128) = 128 THEN COLOR 7
-hagla 608, 416, "s"
-'PRINT "     Cycles:"; cycles
-'PRINT
-'DO WHILE INKEY$ = "": LOOP
-SLEEP
+hagla 608, 409, "s"
+COLOR 8
+hagla 460, 416, "$" + hexpad(anybyte(pc), 2)
+opcode$ = optostr
+COLOR 7
+hagla 478, 416, LCASE$(opcode$)
+IF utstep THEN SLEEP
 END SUB
 
 SUB vb
