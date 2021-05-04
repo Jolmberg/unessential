@@ -122,6 +122,7 @@ skip = 2
 ' Use arrays instead of files to emulate memory
 ' Instruction printing works again
 ' Add the last few instruction (just some missing addressing modes for SBC and EOR)
+' Wrap zero-page addresses in pre and post indexed modes
 '
 'General info:
 'opcode functions are called op.???(?).
@@ -1797,17 +1798,16 @@ FUNCTION post&
 pc = pc + 1
 c = anybyte(pc)
 a = anybyte(INT(c))
-b = anybyte(c + 1)
+b = anybyte((c + 1) AND 255)
 post = (a + (b * 256) + reg.y) AND 65535
 END FUNCTION
 
 FUNCTION pre&
 pc = pc + 1
 c = anybyte(pc)
-c = c + reg.x
-IF (c AND 256) THEN c = c AND 255
+c = (c + reg.x) AND 255
 a = anybyte(INT(c))
-b = anybyte(c + 1)
+b = anybyte((c + 1) AND 255)
 pre = a + b * 256
 END FUNCTION
 
