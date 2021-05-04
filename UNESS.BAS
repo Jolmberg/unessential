@@ -124,6 +124,7 @@ skip = 2
 ' Add the last few instruction (just some missing addressing modes for SBC and EOR)
 ' Wrap zero-page addresses in pre and post indexed modes
 ' Implement the indirect JMP bug
+' Fix return address written by NMI
 '
 'General info:
 'opcode functions are called op.???(?).
@@ -700,6 +701,9 @@ SELECT CASE byte%
          utskrift
       END IF
 END SELECT
+
+pc = pc + 1
+
 IF s > 113.85 THEN
    s = s - 113.85
    lines = lines + 1
@@ -739,7 +743,7 @@ END SELECT
 'DO WHILE INKEY$ = "": LOOP
 'DO WHILE INKEY$ = "": LOOP
 'DO WHILE INKEY$ = "": LOOP
-pc = pc + 1
+
 'patterntables
 'o$ = CHR$(pc \ 256)'High byte pc
 'PUT #9, , o$
@@ -1443,7 +1447,7 @@ SUB op.rti
 reg.s = pop AND 239
 a = pop
 b = pop
-pc = a + b * 256
+pc = a + b * 256 - 1
 END SUB
 
 SUB op.rts
@@ -1977,7 +1981,7 @@ IF vblank = 0 THEN
       push reg.s        'Push status
       reg.s = reg.s OR 4
       'opcode$ = "vblank: jumping to " + HEX$(nmi)
-      pc = nmi - 1
+      pc = nmi
    END IF
    frame = frame + 1
    IF frame = skip THEN frame = 0: crappygfxengine 'Draw graphics...
