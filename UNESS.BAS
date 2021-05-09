@@ -100,8 +100,8 @@ DIM SHARED joy1reset AS INTEGER, ppu2 AS INTEGER, firstread AS INTEGER
 DIM SHARED bpoint AS LONG, skip AS INTEGER
 DIM SHARED mirroring AS INTEGER, scrollwrite AS INTEGER
 DIM SHARED hscroll AS INTEGER, vscroll AS INTEGER
-DIM SHARED pal(63, 2) AS INTEGER, colour(15) AS INTEGER
-DIM SHARED spr(15) AS INTEGER, palemu AS INTEGER, frame AS INTEGER
+DIM SHARED pal(63, 2) AS INTEGER
+DIM SHARED palemu AS INTEGER, frame AS INTEGER
 DIM SHARED bank1(16383) AS INTEGER, bank2(16383) AS INTEGER
 DIM SHARED ram(2047) AS INTEGER, vram(16383) AS INTEGER
 ON ERROR GOTO 14
@@ -125,6 +125,7 @@ skip = 2
 ' Wrap zero-page addresses in pre and post indexed modes
 ' Implement the indirect JMP bug
 ' Fix return address written by NMI
+' Improve sprite palette
 '
 'General info:
 'opcode functions are called op.???(?).
@@ -153,6 +154,7 @@ NEXT r
 COLOR 12
 hagla 1, 270, "joypads"
 hagla 1, 290, "pattern tables"
+hagla 270, 290, "palette"
 OPEN fil$ FOR BINARY AS #1         'The rom has file number #1.
 reg.s = &H2C                       'Status bit 6=1 (?)
 reg.sp = 255                       'Stack pointer should be 255(!?)
@@ -275,6 +277,8 @@ DIM imgpal(15)
 DIM tile(7, 7)
 DIM bk(63, 59)
 DIM attr(31, 31)
+DIM sprpal(15) AS INTEGER
+DIM bgpal(15, 3) AS INTEGER
 IF (ppu1 AND 16) = 16 THEN okning = 128
 o = ppu1 AND 3
 IF o = 0 THEN adr = &H2000
@@ -283,19 +287,37 @@ IF o = 2 THEN adr = &H2800
 IF o = 3 THEN adr = &H2C00
 'Set palette(s).
 LOCATE 1, 63
-ERASE colour
+
 FOR c = 0 TO 15
    r = vram(&H3F00 + c) AND 15
-   colour(r) = c
+   bgpal(c, 0) = pal(r, 0)
+   bgpal(c, 1) = pal(r, 1)
+   bgpal(c, 2) = pal(r, 2)
    IF palemu = 1 THEN PALETTE c, 65536 * pal(r, 2) + 256 * pal(r, 1) + pal(r, 0)
+   LINE (270 + c * 4, 300)-(273 + c * 4, 303), c, BF
    'COLOR c
    'PRINT "ß";
 NEXT c
 LOCATE 2, 63
 FOR c = 0 TO 15
    r = vram(&H3F10 + c) AND 15
-   'COLOR colour(r)
-   spr(c) = colour(r)
+   mindiff = 300000
+   best = 0
+   FOR bc = 0 TO 15
+      rdiff = bgpal(bc, 0) - pal(r, 0)
+      gdiff = bgpal(bc, 1) - pal(r, 1)
+      bdiff = bgpal(bc, 2) - pal(r, 2)
+      diff = rdiff * rdiff + gdiff * gdiff + bdiff * bdiff
+      IF diff = 0 THEN
+         best = bc
+         EXIT FOR
+      ELSEIF diff < mindiff THEN
+         best = bc
+         mindiff = diff
+      END IF
+   NEXT bc
+   sprpal(c) = best
+   LINE (270 + c * 4, 305)-(273 + c * 4, 308), sprpal(c), BF
    'PRINT "ß";
 NEXT c
 
@@ -424,8 +446,8 @@ IF asize = 0 THEN
          b = 300 + ((sprram(c + 1) AND 240) \ 2)
          FOR cy = sy TO (sy XOR 7) STEP sys
             FOR cx = sx TO (sx XOR 7) STEP sxs
-               IF rp = 0 THEN IF POINT(a + cx, b + cy) > 0 THEN PSET (x + ax, y + bx + 1), spr(POINT(a + cx, b + cy) OR rpal)
-               IF rp = 32 THEN IF POINT(x + ax, y + bx + 1) = 0 THEN PSET (x + ax, y + bx + 1), spr(POINT(a + cx, b + cy) OR rpal)
+               IF rp = 0 THEN IF POINT(a + cx, b + cy) > 0 THEN PSET (x + ax, y + bx + 1), sprpal(POINT(a + cx, b + cy) OR rpal)
+               IF rp = 32 THEN IF POINT(x + ax, y + bx + 1) = 0 THEN PSET (x + ax, y + bx + 1), sprpal(POINT(a + cx, b + cy) OR rpal)
                ax = ax + 1
             NEXT cx
             bx = bx + 1: ax = 0
@@ -454,8 +476,8 @@ IF asize = 32 THEN
             FOR spr = 8 TO 0 STEP -8
             FOR cy = sy TO (sy XOR 7) STEP sys
                FOR cx = 0 TO 7
-                  IF rp = 0 THEN IF POINT(a + cx, b + cy) > 0 THEN PSET (x + ax, y + bx + 1 + spr), (POINT(a + cx, b + cy) OR rpal)
-                  IF rp = 32 THEN IF POINT(x + ax, y + bx + 1 + spr) = 0 THEN PSET (x + ax, y + bx + 1 + spr), (POINT(a + cx, b + cy) OR rpal)
+                  IF rp = 0 THEN IF POINT(a + cx, b + cy) > 0 THEN PSET (x + ax, y + bx + 1 + spr), sprpal(POINT(a + cx, b + cy) OR rpal)
+                  IF rp = 32 THEN IF POINT(x + ax, y + bx + 1 + spr) = 0 THEN PSET (x + ax, y + bx + 1 + spr), sprpal(POINT(a + cx, b + cy) OR rpal)
                   'IF POINT(a + cx, b + cy) > 0 THEN PSET (x + ax, y + bx + 1 + spr), POINT(a + cx, b + cy)
                   ax = ax + 1
                NEXT cx
