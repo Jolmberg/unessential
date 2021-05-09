@@ -2,61 +2,61 @@ DECLARE SUB save ()
 DECLARE SUB vb ()
 DECLARE SUB config ()
 DECLARE FUNCTION filerequest$ ()
-DECLARE FUNCTION zpx! ()
-DECLARE FUNCTION zpy! ()
-DECLARE FUNCTION abso! ()
-DECLARE FUNCTION absx! ()
-DECLARE FUNCTION absy! ()
-DECLARE FUNCTION pre! ()
-DECLARE FUNCTION post! ()
-DECLARE FUNCTION zp! ()
+DECLARE FUNCTION zpx& ()
+DECLARE FUNCTION zpy& ()
+DECLARE FUNCTION abso& ()
+DECLARE FUNCTION absx& ()
+DECLARE FUNCTION absy& ()
+DECLARE FUNCTION pre& ()
+DECLARE FUNCTION post& ()
+DECLARE FUNCTION zp& ()
 DECLARE FUNCTION breakpoint! ()
 DECLARE SUB op.bvs ()
 DECLARE SUB op.bvc ()
-DECLARE SUB op.sbc (typ!)
+DECLARE SUB op.sbc (typ&)
 DECLARE SUB op.brk ()
 DECLARE SUB op.php ()
 DECLARE SUB op.plp ()
-DECLARE SUB op.cpy (typ!)
-DECLARE SUB op.bit (typ!)
-DECLARE SUB op.cpx (typ!)
-DECLARE SUB op.eor (typ!)
+DECLARE SUB op.cpy (typ&)
+DECLARE SUB op.bit (typ&)
+DECLARE SUB op.cpx (typ&)
+DECLARE SUB op.eor (typ&)
 DECLARE SUB crappygfxengine ()
 DECLARE SUB op.bcc ()
 DECLARE SUB patterntables ()
 DECLARE SUB op.rti ()
-DECLARE SUB op.dec (typ!)
-DECLARE SUB op.sty (typ!)
-DECLARE SUB op.stx (typ!)
-DECLARE SUB op.and (typ!)
+DECLARE SUB op.dec (typ&)
+DECLARE SUB op.sty (typ&)
+DECLARE SUB op.stx (typ&)
+DECLARE SUB op.and (typ&)
 DECLARE SUB op.bcs ()
-DECLARE SUB op.inc (typ!)
-DECLARE SUB op.ldy (typ!)
-DECLARE SUB op.cmp (typ!)
+DECLARE SUB op.inc (typ&)
+DECLARE SUB op.ldy (typ&)
+DECLARE SUB op.cmp (typ&)
 DECLARE SUB op.rts ()
 DECLARE FUNCTION pop% ()
 DECLARE SUB op.jsr ()
 DECLARE SUB push (r%)
 DECLARE SUB moveup ()
 DECLARE SUB loadfont ()
-DECLARE FUNCTION anybyte% (posi!)
-DECLARE SUB putbyte (byte%, posi!)
+DECLARE FUNCTION anybyte% (posi&)
+DECLARE SUB putbyte (byte%, posi&)
 DECLARE FUNCTION getbyte% ()
 DECLARE SUB hagla (x, y, text$)
 DECLARE SUB op.tya ()
-DECLARE SUB op.adc (typ!)
+DECLARE SUB op.adc (typ&)
 DECLARE SUB op.bpl ()
 DECLARE SUB op.bmi ()
-DECLARE SUB op.jmp (typ!)
+DECLARE SUB op.jmp (typ&)
 DECLARE SUB op.txs ()
 DECLARE SUB header ()
 DECLARE SUB op.bne ()
 DECLARE SUB op.beq ()
 DECLARE SUB utskrift ()
-DECLARE SUB op.ldx (typ!)
-DECLARE SUB op.rol (typ!)
-DECLARE SUB op.ror (typ!)
-DECLARE SUB op.asl (typ!)
+DECLARE SUB op.ldx (typ&)
+DECLARE SUB op.rol (typ&)
+DECLARE SUB op.ror (typ&)
+DECLARE SUB op.asl (typ&)
 DECLARE SUB op.sec ()
 DECLARE SUB op.sed ()
 DECLARE SUB op.cli ()
@@ -64,16 +64,16 @@ DECLARE SUB op.clv ()
 DECLARE SUB op.clc ()
 DECLARE SUB op.cld ()
 DECLARE SUB op.sei ()
-DECLARE SUB op.ora (typ!)
-DECLARE SUB op.lsr (typ!)
-DECLARE SUB op.sta (typ!)
+DECLARE SUB op.ora (typ&)
+DECLARE SUB op.lsr (typ&)
+DECLARE SUB op.sta (typ&)
 DECLARE SUB op.pla ()
 DECLARE SUB op.pha ()
 DECLARE SUB op.tsx ()
 DECLARE SUB op.txa ()
 DECLARE SUB op.dex ()
 DECLARE SUB op.dey ()
-DECLARE SUB op.lda (typ)
+DECLARE SUB op.lda (typ&)
 DECLARE SUB op.inx ()
 DECLARE SUB op.iny ()
 DECLARE SUB op.tax ()
@@ -158,7 +158,7 @@ LINE (459, 407)-(639, 407), 8, , 21845
 patterntables
 emulate                            'Start emulating!
 
-FUNCTION abso
+FUNCTION abso&
 pc = pc + 1
 GET #2, pc, byte$
 a = ASC(byte$)
@@ -170,7 +170,7 @@ abso = a
 
 END FUNCTION
 
-FUNCTION absx
+FUNCTION absx&
 pc = pc + 1
 GET #2, pc, byte$
 a = ASC(byte$)
@@ -183,7 +183,7 @@ IF (a AND 65536) THEN a = a AND 65535
 absx = a
 END FUNCTION
 
-FUNCTION absy
+FUNCTION absy&
 pc = pc + 1
 GET #2, pc, byte$
 a = ASC(byte$)
@@ -196,7 +196,7 @@ IF (a AND 65536) THEN a = a AND 65535
 absy = a
 END FUNCTION
 
-FUNCTION anybyte% (posi)
+FUNCTION anybyte% (posi AS LONG)
 GET #2, posi + 1, byte$
 anybyte% = ASC(byte$)
 
@@ -1131,7 +1131,7 @@ LINE (460, 409)-(639, 423), 0, BF
 END SUB
 
 DEFINT A
-SUB op.adc (typ)
+SUB op.adc (typ AS LONG)
 a = anybyte(typ)
 cc = (reg.s AND 1)
 reg.s = reg.s AND 60
@@ -1149,7 +1149,7 @@ IF reg.a = 0 THEN reg.s = reg.s OR 2                         'Z?
 END SUB
 
 DEFSNG A
-SUB op.and (typ)
+SUB op.and (typ AS LONG)
 'AND: AND A with byte in memory
 r = anybyte(typ)
 reg.a = reg.a AND r
@@ -1158,7 +1158,7 @@ IF reg.a = 0 THEN reg.s = reg.s OR 2
 IF reg.a > 127 THEN reg.s = reg.s OR 128
 END SUB
 
-SUB op.asl (typ)
+SUB op.asl (typ AS LONG)
 'ASL: Shift byte in memory left
 reg.s = reg.s AND 254
 b% = anybyte(typ)
@@ -1197,7 +1197,7 @@ END SUB
 
 DEFINT B
 DEFSNG A
-SUB op.bit (typ)
+SUB op.bit (typ AS LONG)
 'BIT: AND byte in memory with A and transfer bit 7 and 8
 '     to the status register(!?)
 b = anybyte(typ)
@@ -1291,7 +1291,7 @@ reg.s = reg.s AND 191
 s = s + 2
 END SUB
 
-SUB op.cmp (typ)
+SUB op.cmp (typ AS LONG)
 'CMP Compare A with byte in memory
 r = anybyte(typ)
 reg.s = reg.s AND 124
@@ -1300,7 +1300,7 @@ IF ((reg.a - r) AND 128) THEN reg.s = reg.s OR 128
 IF r < reg.a THEN reg.s = reg.s OR 1
 END SUB
 
-SUB op.cpx (typ)
+SUB op.cpx (typ AS LONG)
 'CPX: Compare X with byte in memory
 r = anybyte(typ)
 reg.s = reg.s AND 124
@@ -1309,7 +1309,7 @@ IF ((reg.x - r) AND 128) THEN reg.s = reg.s OR 128
 IF r < reg.x THEN reg.s = reg.s OR 1
 END SUB
 
-SUB op.cpy (typ)
+SUB op.cpy (typ AS LONG)
 'CPY: Compare Y with byte in memory
 r = anybyte(typ)
 reg.s = reg.s AND 124
@@ -1319,7 +1319,7 @@ IF r < reg.y THEN reg.s = reg.s OR 1
 END SUB
 
 DEFINT B
-SUB op.dec (typ)
+SUB op.dec (typ AS LONG)
 'DEC: Decrement byte in memory by 1
 b = anybyte(typ)
 b = b - 1
@@ -1352,7 +1352,7 @@ s = s + 2
 END SUB
 
 DEFINT B
-SUB op.eor (typ)
+SUB op.eor (typ AS LONG)
 'EOR: XOR A with byte in memory
 b = anybyte(typ)
 reg.a = reg.a XOR b
@@ -1361,7 +1361,7 @@ IF reg.a = 0 THEN reg.s = reg.s OR 2      'Z?
 IF reg.a > 127 THEN reg.s = reg.s OR 128  'S?
 END SUB
 
-SUB op.inc (typ)
+SUB op.inc (typ AS LONG)
 'INC: Increment byte in memory by 1
 b = anybyte(typ)
 b = b + 1
@@ -1394,7 +1394,7 @@ IF reg.y > 127 THEN reg.s = reg.s OR 128
 s = s + 2
 END SUB
 
-SUB op.jmp (typ)
+SUB op.jmp (typ AS LONG)
 'JMP: Jump to a new position
 'Note that pc is incremented by 1 after each instruction
 SELECT CASE typ
@@ -1402,9 +1402,9 @@ SELECT CASE typ
       pc = abso
       s = s + 3
    CASE 2                          'Indirect. Two operand bytes.
-      b = abso
-      a = anybyte(b)
-      b = anybyte(b + 1)
+      b& = abso
+      a = anybyte(b&)
+      b = anybyte(b& + 1)
       pc = a + b * 256
       s = s + 5
 END SELECT
@@ -1421,7 +1421,7 @@ pc = a + b * 256
 s = s + 6
 END SUB
 
-SUB op.lda (typ)
+SUB op.lda (typ AS LONG)
 'LDA: Load A
 reg.a = anybyte(typ)
 reg.s = reg.s AND 125
@@ -1429,7 +1429,7 @@ IF reg.a = 0 THEN reg.s = reg.s OR 2  'Z?
 IF reg.a > 127 THEN reg.s = reg.s OR 128'S?
 END SUB
 
-SUB op.ldx (typ)
+SUB op.ldx (typ AS LONG)
 'LDX: Load X
 reg.x = anybyte(typ)
 reg.s = reg.s AND 125
@@ -1437,7 +1437,7 @@ IF reg.x = 0 THEN reg.s = reg.s OR 2
 IF reg.x > 127 THEN reg.s = reg.s OR 128
 END SUB
 
-SUB op.ldy (typ)
+SUB op.ldy (typ AS LONG)
 'LDY: Load Y like crazy
 reg.y = anybyte(typ)
 reg.s = reg.s AND 125
@@ -1445,7 +1445,7 @@ IF reg.y = 0 THEN reg.s = reg.s OR 2
 IF reg.y > 127 THEN reg.s = reg.s OR 128
 END SUB
 
-SUB op.lsr (typ)
+SUB op.lsr (typ AS LONG)
 'LSR: Shift byte in memory right
 reg.s = reg.s AND 254
 b% = anybyte(typ)
@@ -1457,7 +1457,7 @@ IF b% = 0 THEN reg.s = reg.s OR 2
 END SUB
 
 DEFINT B
-SUB op.ora (typ)
+SUB op.ora (typ AS LONG)
 'ORA: OR A with byte in memory
 b = anybyte(typ)
 reg.a = reg.a OR b
@@ -1497,7 +1497,7 @@ s = s + 4
 END SUB
 
 DEFINT B
-SUB op.rol (typ)
+SUB op.rol (typ AS LONG)
 'ROL: Rotate byte in memory left
 b = anybyte(typ)
 b = b + b + (reg.s AND 1)
@@ -1513,7 +1513,7 @@ IF b > 127 THEN reg.s = reg.s OR 128
 END SUB
 
 DEFSNG B
-SUB op.ror (typ)
+SUB op.ror (typ AS LONG)
 'ROR: Rotate byte in memory right
 c = anybyte(typ)
 c = c + (reg.s AND 1) * 256
@@ -1543,7 +1543,7 @@ s = s + 6
 END SUB
 
 DEFINT A
-SUB op.sbc (typ)
+SUB op.sbc (typ AS LONG)
 a = anybyte(typ)
 cc = (reg.s AND 1) XOR 1
 reg.s = reg.s AND 60
@@ -1583,17 +1583,17 @@ reg.s = reg.s OR 4
 s = s + 2
 END SUB
 
-SUB op.sta (typ)
+SUB op.sta (typ AS LONG)
 'STA: Store A
 putbyte reg.a, typ
 END SUB
 
-SUB op.stx (typ)
+SUB op.stx (typ AS LONG)
 'STX: Store X
 putbyte reg.x, typ
 END SUB
 
-SUB op.sty (typ)
+SUB op.sty (typ AS LONG)
 'STY: Store Y
 putbyte reg.y, typ
 END SUB
@@ -1691,7 +1691,7 @@ GET #2, 257 + reg.sp, byte$
 pop% = ASC(byte$)
 END FUNCTION
 
-FUNCTION post
+FUNCTION post&
 c = getbyte
 a = anybyte(INT(c))
 b = anybyte(c + 1)
@@ -1700,7 +1700,7 @@ IF (a AND 65536) THEN a = a AND 65535
 post = a
 END FUNCTION
 
-FUNCTION pre
+FUNCTION pre&
 c = getbyte
 c = c + reg.x
 IF (c AND 256) THEN c = c AND 255
@@ -1716,7 +1716,7 @@ reg.sp = reg.sp - 1
 IF reg.sp < 0 THEN reg.sp = 255
 END SUB
 
-SUB putbyte (byte%, posi)
+SUB putbyte (byte%, posi AS LONG)
 'Check if we are writing to some special address
 IF posi >= &H2000 THEN
    IF posi <= &H2007 THEN
@@ -1737,7 +1737,7 @@ IF posi >= &H2000 THEN
          END IF
       END IF
       IF posi = &H2006 THEN        'Change address for VRAM read/write
-         vramposi = (vramposi AND 255) * 256 + byte%
+         vramposi = (vramposi AND 63) * 256 + byte%
          firstread = 1
       END IF
       IF posi = &H2007 THEN        'Write to VRAM, increment "pointer"
@@ -1862,20 +1862,20 @@ ELSE
 END IF
 END SUB
 
-FUNCTION zp
+FUNCTION zp&
 a = getbyte
 zp = a
 END FUNCTION
 
 DEFINT A
-FUNCTION zpx
+FUNCTION zpx&
 a = getbyte
 a = a + reg.x
 IF (a AND 256) THEN a = a AND 255
 zpx = a
 END FUNCTION
 
-FUNCTION zpy
+FUNCTION zpy&
 a = getbyte
 a = a + reg.y
 IF (a AND 256) THEN a = a AND 255
