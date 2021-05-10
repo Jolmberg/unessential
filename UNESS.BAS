@@ -1104,7 +1104,7 @@ END SUB
 
 DEFSNG C, R
 SUB loadfont
-OPEN "font.dat" FOR BINARY AS #7
+OPEN "FONT.DAT" FOR BINARY AS #7
 byte$ = " "
 hus = -1
 10 hus = hus + 1: del = -1
