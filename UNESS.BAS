@@ -123,6 +123,7 @@ skip = 2
 ' Instruction printing works again
 ' Add the last few instruction (just some missing addressing modes for SBC and EOR)
 ' Wrap zero-page addresses in pre and post indexed modes
+' Implement the indirect JMP bug
 '
 'General info:
 'opcode functions are called op.???(?).
@@ -1310,8 +1311,12 @@ SELECT CASE typ
    CASE 2                          'Indirect. Two operand bytes.
       b& = abso
       a = anybyte(b&)
-      b = anybyte(b& + 1)
-      pc = a + b * 256 - 1
+      IF (b& AND 255) = 255 THEN
+         b& = anybyte(b& - 255)
+      ELSE
+         b& = anybyte(b& + 1)
+      END IF
+      pc = a + b& * 256 - 1
       s = s + 5
 END SELECT
 END SUB
