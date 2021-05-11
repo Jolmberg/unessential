@@ -11,8 +11,6 @@ DECLARE FUNCTION pre& ()
 DECLARE FUNCTION post& ()
 DECLARE FUNCTION zp& ()
 DECLARE FUNCTION breakpoint! ()
-DECLARE SUB op.bvs ()
-DECLARE SUB op.bvc ()
 DECLARE SUB op.sbc (typ&)
 DECLARE SUB op.brk ()
 DECLARE SUB op.php ()
@@ -22,14 +20,12 @@ DECLARE SUB op.bit (typ&)
 DECLARE SUB op.cpx (typ&)
 DECLARE SUB op.eor (typ&)
 DECLARE SUB crappygfxengine ()
-DECLARE SUB op.bcc ()
 DECLARE SUB patterntables ()
 DECLARE SUB op.rti ()
 DECLARE SUB op.dec (typ&)
 DECLARE SUB op.sty (typ&)
 DECLARE SUB op.stx (typ&)
 DECLARE SUB op.and (typ&)
-DECLARE SUB op.bcs ()
 DECLARE SUB op.inc (typ&)
 DECLARE SUB op.ldy (typ&)
 DECLARE SUB op.cmp (typ&)
@@ -41,17 +37,13 @@ DECLARE SUB moveup ()
 DECLARE SUB loadfont ()
 DECLARE FUNCTION anybyte% (posi&)
 DECLARE SUB putbyte (byte%, posi&)
-DECLARE FUNCTION getbyte% ()
 DECLARE SUB hagla (x, y, text$)
+DECLARE SUB op.branch ()
 DECLARE SUB op.tya ()
 DECLARE SUB op.adc (typ&)
-DECLARE SUB op.bpl ()
-DECLARE SUB op.bmi ()
 DECLARE SUB op.jmp (typ&)
 DECLARE SUB op.txs ()
 DECLARE SUB header ()
-DECLARE SUB op.bne ()
-DECLARE SUB op.beq ()
 DECLARE SUB utskrift ()
 DECLARE SUB op.ldx (typ&)
 DECLARE SUB op.rol (typ&)
@@ -484,14 +476,14 @@ SELECT CASE byte%
    CASE &HA1: op.lda (pre): s = s + 6
    CASE &HB1: op.lda (post): s = s + 5
 
-   CASE &HD0: op.bne
-   CASE &HF0: op.beq
-   CASE &H10: op.bpl
-   CASE &H30: op.bmi
-   CASE &H90: op.bcc
-   CASE &HB0: op.bcs
-   CASE &H50: op.bvc
-   CASE &H70: op.bvs
+   CASE &HD0: s = s + 2: pc = pc + 1: IF (reg.s AND 2) = 0 THEN op.branch 'op.bne
+   CASE &HF0: s = s + 2: pc = pc + 1: IF (reg.s AND 2) THEN op.branch 'op.beq
+   CASE &H10: s = s + 2: pc = pc + 1: IF (reg.s AND 128) = 0 THEN op.branch 'op.bpl
+   CASE &H30: s = s + 2: pc = pc + 1: IF (reg.s AND 128) THEN op.branch 'op.bmi
+   CASE &H90: s = s + 2: pc = pc + 1: IF (reg.s AND 1) = 0 THEN op.branch 'op.bcc
+   CASE &HB0: s = s + 2: pc = pc + 1: IF (reg.s AND 1) THEN op.branch 'op.bcs
+   CASE &H50: s = s + 2: pc = pc + 1: IF (reg.s AND 64) = 0 THEN op.branch 'op.bvc
+   CASE &H70: s = s + 2: pc = pc + 1: IF (reg.s AND 64) THEN op.branch 'op.bvs
 
    CASE &HAA: op.tax
    CASE &H8A: op.txa
@@ -878,11 +870,6 @@ EndThisSub:
 
 END FUNCTION
 
-FUNCTION getbyte%
-pc = pc + 1
-getbyte% = anybyte(pc)
-END FUNCTION
-
 SUB hagla (x, y, text$)
 FOR o = 1 TO LEN(text$)
    IF ASC(MID$(text$, o, 1)) > 96 AND ASC(MID$(text$, o, 1)) < 123 THEN
@@ -1117,33 +1104,7 @@ IF b% = 0 THEN reg.s = reg.s OR 2
 IF b% > 127 THEN reg.s = reg.s OR 128
 END SUB
 
-DEFINT A
-SUB op.bcc
-'BCC: Branch if c=0
-a = getbyte
-IF a > 127 THEN a = a - 256
-IF (reg.s AND 1) = 0 THEN pc = pc + a
-s = s + 2                             'TODO: Check page boundary
-END SUB
-
-SUB op.bcs
-'BCS: Branch if c=1
-a = getbyte
-IF a > 127 THEN a = a - 256
-IF (reg.s AND 1) THEN pc = pc + a
-s = s + 2                             'TODO: Check page boundary
-END SUB
-
-SUB op.beq
-'BEQ: Branch if Z=1
-a = getbyte
-IF a > 127 THEN a = a - 256
-IF (reg.s AND 2) THEN pc = pc + a
-s = s + 2                             'TODO: Check page boundary
-END SUB
-
 DEFINT B
-DEFSNG A
 SUB op.bit (typ AS LONG)
 'BIT: AND byte in memory with A and transfer bit 7 and 8
 '     to the status register(!?)
@@ -1155,33 +1116,18 @@ IF a = 0 THEN reg.s = reg.s OR 2
 
 END SUB
 
-DEFINT A
 DEFSNG B
-SUB op.bmi
-'BMI: Branch if S=1
-a = getbyte
+SUB op.branch
+s = s + 1
+a = anybyte(pc)
+pc = pc + 1
+oldpc = pc
 IF a > 127 THEN a = a - 256
-IF (reg.s AND 128) THEN pc = pc + a
-s = s + 2                                'TODO: Check page boundary
+pc = pc + a
+IF (oldpc AND 256) <> (pc AND 256) THEN s = s + 1
+pc = pc - 1
 END SUB
 
-SUB op.bne
-'BNE: Branch if Z=0
-a = getbyte
-IF a > 127 THEN a = a - 256
-IF (reg.s AND 2) = 0 THEN pc = pc + a
-s = s + 2                                'TODO: Check page boundary
-END SUB
-
-SUB op.bpl
-'BPL: Branch if S=0
-a = getbyte
-IF a > 127 THEN a = a - 256
-IF (reg.s AND 128) = 0 THEN pc = pc + a
-s = s + 2                                'TODO: Check page boundary
-END SUB
-
-DEFSNG A
 SUB op.brk
 'BRK: Just BRK... :(
 IF (reg.s AND 4) = 0 THEN
@@ -1196,24 +1142,6 @@ IF (reg.s AND 4) = 0 THEN
 END IF
 END SUB
 
-DEFINT A
-SUB op.bvc
-'BVC: Branch if V=0
-a = getbyte
-IF a > 127 THEN a = a - 256
-IF (reg.s AND 64) = 0 THEN pc = pc + a
-s = s + 2                                'TODO: Check page boundary
-END SUB
-
-SUB op.bvs
-'BVS: Branch if V=1
-a = getbyte
-IF a > 127 THEN a = a - 256
-IF (reg.s AND 64) THEN pc = pc + a
-s = s + 2                                'TODO: Check page boundary
-END SUB
-
-DEFSNG A
 SUB op.clc
 'CLC: Clear carry flag
 reg.s = reg.s AND 254
