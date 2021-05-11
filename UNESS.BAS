@@ -121,6 +121,7 @@ skip = 2
 ' BVC/BVS fixed, were copies of BCC/BCS
 ' Use arrays instead of files to emulate memory
 ' Instruction printing works again
+' Add the last few instruction (just some missing addressing modes for SBC and EOR)
 '
 'General info:
 'opcode functions are called op.???(?).
@@ -598,6 +599,8 @@ SELECT CASE byte%
    CASE &H4D: op.eor (abso): s = s + 4
    CASE &H5D: op.eor (absx): s = s + 4
    CASE &H59: op.eor (absy): s = s + 4
+   CASE &H41: op.eor (pre): s = s + 6
+   CASE &H51: op.eor (post): s = s + 5
 
    CASE &H2A
       reg.a = reg.a + reg.a + (reg.s AND 1)
@@ -679,6 +682,8 @@ SELECT CASE byte%
    CASE &HED: op.sbc (abso): s = s + 4
    CASE &HFD: op.sbc (absx): s = s + 4
    CASE &HF9: op.sbc (absy): s = s + 4
+   CASE &HE1: op.sbc (pre): s = s + 6
+   CASE &HF1: op.sbc (post): s = s + 5
 
    CASE &H0: op.brk
   
@@ -1670,6 +1675,8 @@ SELECT CASE byte%
    CASE &H4D: o$ = "EOR" + str.abso
    CASE &H5D: o$ = "EOR" + str.absx
    CASE &H59: o$ = "EOR" + str.absy
+   CASE &H41: o$ = "EOR" + str.pre
+   CASE &H51: o$ = "EOR" + str.post
 
    CASE &H2A: o$ = "ROL A"
    CASE &H26: o$ = "ROL" + str.zp
@@ -1733,6 +1740,8 @@ SELECT CASE byte%
    CASE &HED: o$ = "SBC" + str.abso
    CASE &HFD: o$ = "SBC" + str.absx
    CASE &HF9: o$ = "SBC" + str.absy
+   CASE &HE1: o$ = "SBC" + str.pre
+   CASE &HF1: o$ = "SBC" + str.post
 
    CASE &H0: o$ = "BRK"
 
