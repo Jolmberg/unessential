@@ -286,21 +286,18 @@ IF o = 1 THEN adr = &H2400
 IF o = 2 THEN adr = &H2800
 IF o = 3 THEN adr = &H2C00
 'Set palette(s).
-LOCATE 1, 63
 
 FOR c = 0 TO 15
-   r = vram(&H3F00 + c) AND 15
+   r = vram(&H3F00 + c) AND 63
    bgpal(c, 0) = pal(r, 0)
    bgpal(c, 1) = pal(r, 1)
    bgpal(c, 2) = pal(r, 2)
    IF palemu = 1 THEN PALETTE c, 65536 * pal(r, 2) + 256 * pal(r, 1) + pal(r, 0)
    LINE (270 + c * 4, 300)-(273 + c * 4, 303), c, BF
-   'COLOR c
-   'PRINT "ß";
 NEXT c
 LOCATE 2, 63
 FOR c = 0 TO 15
-   r = vram(&H3F10 + c) AND 15
+   r = vram(&H3F10 + c) AND 63
    mindiff = 300000
    best = 0
    FOR bc = 0 TO 15
@@ -1035,56 +1032,15 @@ hagla 340, 41, "$" + LCASE$(HEX$(nmi))
 hagla 340, 49, "$" + LCASE$(HEX$(brk))
 
 'Palette
-FOR o = 0 TO 48 STEP 16
-   pal(0 + o, 0) = 47
-   pal(0 + o, 1) = 47
-   pal(0 + o, 2) = 47
-   pal(1 + o, 0) = 0
-   pal(1 + o, 1) = 29
-   pal(1 + o, 2) = 60
-   pal(2 + o, 0) = 8
-   pal(2 + o, 1) = 14
-   pal(2 + o, 2) = 60
-   pal(3 + o, 0) = 33
-   pal(3 + o, 1) = 0
-   pal(3 + o, 2) = 62
-   pal(4 + o, 0) = 47
-   pal(4 + o, 1) = 0
-   pal(4 + o, 2) = 47
-   pal(5 + o, 0) = 58
-   pal(5 + o, 1) = 0
-   pal(5 + o, 2) = 23
-   pal(6 + o, 0) = 56
-   pal(6 + o, 1) = 10
-   pal(6 + o, 2) = 0
-   pal(7 + o, 0) = 52
-   pal(7 + o, 1) = 19
-   pal(7 + o, 2) = 2
-   pal(8 + o, 0) = 35
-   pal(8 + o, 1) = 29
-   pal(8 + o, 2) = 0
-   pal(9 + o, 0) = 0
-   pal(9 + o, 1) = 39
-   pal(9 + o, 2) = 0
-   pal(10 + o, 0) = 0
-   pal(10 + o, 1) = 43
-   pal(10 + o, 2) = 0
-   pal(11 + o, 0) = 0
-   pal(11 + o, 1) = 37
-   pal(11 + o, 2) = 14
-   pal(12 + o, 0) = 0
-   pal(12 + o, 1) = 33
-   pal(12 + o, 2) = 35
-NEXT o
-FOR b = 16 TO 48 STEP 16
-   FOR o = 0 TO 15
-      pal(b + o, 0) = pal(o, 0)
-      pal(b + o, 1) = pal(o, 1)
-      pal(b + o, 2) = pal(o, 2)
-   NEXT o
-NEXT b
-
-
+OPEN "NTSC.PAL" FOR BINARY AS #5
+rgb$ = "   "
+FOR c = 0 TO 63
+   GET #5, , rgb$
+   pal(c, 0) = ASC(MID$(rgb$, 1, 1)) \ 4
+   pal(c, 1) = ASC(MID$(rgb$, 2, 1)) \ 4
+   pal(c, 2) = ASC(MID$(rgb$, 3, 1)) \ 4
+NEXT c
+CLOSE #5
 END SUB
 
 DEFINT A
