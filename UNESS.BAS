@@ -1828,7 +1828,11 @@ ELSEIF posi = &H2006 THEN        'Change address for VRAM read/write
 ELSEIF posi = &H2007 THEN        'Write to VRAM, increment "pointer"
    okn = 1
    IF (ppu1 AND 4) THEN okn = 32
-   vram(vramposi) = byte%
+   IF (vramposi AND &H3F13) = &H3F10 THEN
+      vram(vramposi XOR 16) = byte%
+   ELSE
+      vram(vramposi) = byte%
+   END IF
    vramposi = (vramposi + okn) AND 16383
 ELSEIF posi = &H4014 THEN
    c = byte% * 256
