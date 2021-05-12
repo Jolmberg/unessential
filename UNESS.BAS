@@ -288,7 +288,11 @@ IF o = 3 THEN adr = &H2C00
 'Set palette(s).
 
 FOR c = 0 TO 15
-   r = vram(&H3F00 + c) AND 63
+   IF (c AND 3) = 0 THEN
+      r = vram(&H3F00) AND 63
+   ELSE
+      r = vram(&H3F00 + c) AND 63
+   END IF
    bgpal(c, 0) = pal(r, 0)
    bgpal(c, 1) = pal(r, 1)
    bgpal(c, 2) = pal(r, 2)
