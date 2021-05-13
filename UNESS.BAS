@@ -155,6 +155,9 @@ COLOR 12
 hagla 1, 270, "joypads"
 hagla 1, 290, "pattern tables"
 hagla 270, 290, "palette"
+FOR c = 0 TO 15
+   LINE (270 + c * 4, 300)-(273 + c * 4, 303), c, BF
+NEXT c
 OPEN fil$ FOR BINARY AS #1         'The rom has file number #1.
 reg.s = &H2C                       'Status bit 6=1 (?)
 reg.sp = 255                       'Stack pointer should be 255(!?)
@@ -297,7 +300,6 @@ FOR c = 0 TO 15
    bgpal(c, 1) = pal(r, 1)
    bgpal(c, 2) = pal(r, 2)
    IF palemu = 1 THEN PALETTE c, 65536 * pal(r, 2) + 256 * pal(r, 1) + pal(r, 0)
-   LINE (270 + c * 4, 300)-(273 + c * 4, 303), c, BF
 NEXT c
 LOCATE 2, 63
 FOR c = 0 TO 15
