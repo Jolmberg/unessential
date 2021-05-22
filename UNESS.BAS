@@ -99,11 +99,13 @@ DIM SHARED s AS INTEGER, joy1emu AS INTEGER, joy1reads AS INTEGER
 DIM SHARED joy1reset AS INTEGER, ppu2 AS INTEGER, firstread AS INTEGER
 DIM SHARED bpoint AS LONG, skip AS INTEGER
 DIM SHARED mirroring AS INTEGER, scrollwrite AS INTEGER
-DIM SHARED hscroll AS INTEGER, vscroll AS INTEGER
+DIM SHARED scrollx(16) AS INTEGER, scrolly(16) AS INTEGER
+DIM SHARED ppu1log(15) AS INTEGER
 DIM SHARED pal(63, 2) AS INTEGER
 DIM SHARED palemu AS INTEGER, frame AS INTEGER
 DIM SHARED bank1(16383) AS INTEGER, bank2(16383) AS INTEGER
 DIM SHARED ram(2047) AS INTEGER, vram(16383) AS INTEGER
+DIM SHARED loopy.t AS INTEGER, loopy.x AS INTEGER
 ON ERROR GOTO 14
 GOTO 7
 14
@@ -157,6 +159,9 @@ hagla 1, 290, "pattern tables"
 hagla 270, 290, "palette"
 FOR c = 0 TO 15
    LINE (270 + c * 4, 300)-(273 + c * 4, 303), c, BF
+   scrollx(c) = -1
+   scrolly(c) = -1
+   ppu1log(c) = 0
 NEXT c
 OPEN fil$ FOR BINARY AS #1         'The rom has file number #1.
 reg.s = &H2C                       'Status bit 6=1 (?)
@@ -200,7 +205,7 @@ IF (posi AND &H8000) THEN
 ELSEIF posi < &H800 THEN
    anybyte% = ram(posi)
 ELSEIF posi = &H2002 THEN
-   anybyte% = ppustat: ppustat = ppustat AND 127
+   anybyte% = ppustat: ppustat = ppustat AND 127: scrollwrite = 0
 ELSEIF posi = &H2004 THEN
    anybyte% = sprram(sprramposi)
 ELSEIF posi = &H2007 THEN
@@ -282,7 +287,6 @@ DIM bk(63, 59)
 DIM attr(31, 31)
 DIM sprpal(15) AS INTEGER
 DIM bgpal(15, 3) AS INTEGER
-IF (ppu1 AND 16) = 16 THEN okning = 128
 o = ppu1 AND 3
 IF o = 0 THEN adr = &H2000
 IF o = 1 THEN adr = &H2400
@@ -381,19 +385,16 @@ FOR cy = 8 TO 15
       attr(cx * 2 + 1, cy * 2 + 1) = c \ 64
    NEXT cx
 NEXT cy
-cx = hscroll \ 8
-cy = vscroll \ 8
-cxa = hscroll \ 16
-cya = vscroll \ 16
-cxb = hscroll AND 15
-cyb = vscroll AND 15
-IF o = 1 THEN cx = cx + 32: cxa = cxa + 16
-IF o = 2 THEN cy = cy + 30: cya = cya + 15
-cxm = hscroll AND 7
-cym = vscroll AND 7
 y = 15
 x = 15
 FOR b = 0 TO 15
+   cxa = scrollx(b) \ 16
+   cxb = scrollx(b) AND 15
+   IF scrolly(b) <> -1 THEN
+      cya = scrolly(b) \ 16
+      cyb = scrolly(b) AND 15
+      cym = scrolly(b) AND 7
+   END IF
    FOR a = 0 TO 15
       c = a + cxa
       d = b + cya
@@ -404,7 +405,21 @@ FOR b = 0 TO 15
    NEXT a
 NEXT b
 
-FOR bb = cy TO cy + 29
+okning = 0
+FOR bb0 = 0 TO 29
+   IF (bb0 AND 1) = 0 THEN
+      i = bb0 \ 2
+      cx = scrollx(i) \ 8
+      cxm = scrollx(i) AND 7
+      IF scrolly(i) <> -1 THEN
+         cy = scrolly(i) \ 8
+         cym = scrolly(i) AND 7
+      END IF
+      okning = (ppu1log(i) AND 16) * 8
+      scrollx(i) = -1
+      scrolly(i) = -1
+   END IF
+   bb = bb0 + cy
    FOR ab = cx TO cx + 31
       bbb = bb
       IF bbb > 59 THEN bbb = bbb - 60
@@ -419,7 +434,7 @@ FOR bb = cy TO cy + 29
       x = x + 8
       IF x = 271 THEN y = y + 8: x = 15
    NEXT ab
-NEXT bb
+NEXT bb0
 'END IF
 
 'Sprites.
@@ -737,7 +752,15 @@ IF s > 113.85 THEN
          IF sprram(0) + 1 = lines THEN ppustat = ppustat OR 64
       END IF
    END IF
-   IF lines = 224 THEN vb
+   IF vblank = 0 THEN
+      IF (ppu2 AND 24) THEN
+         vramposi = vramposi AND &HFBE0
+         vramposi = vramposi OR (loopy.t AND &H41F)
+         scrollx((lines \ 16) + 1) = ((loopy.t AND 1024) \ 4) OR ((loopy.t AND 31) * 8) OR loopy.x
+      END IF
+      IF (lines AND 15) = 0 THEN ppu1log(lines \ 16) = ppu1
+   END IF
+   IF lines = 241 THEN vb
    IF lines = 262 THEN vb: lines = 0
    in$ = INKEY$
    IF in$ <> "" THEN
@@ -1815,23 +1838,43 @@ SUB putbyte (byte%, posi AS LONG)
 IF posi < &H800 THEN
    ram(posi) = byte%
    'Ignore mirroring, it's rarely needed
-ELSEIF posi = &H2000 THEN ppu1 = byte%
+ELSEIF posi = &H2000 THEN
+   ppu1 = byte%
+   loopy.t = (loopy.t AND &HF3FF) OR ((byte% AND 3) * 1024)
 ELSEIF posi = &H2001 THEN ppu2 = byte%
 ELSEIF posi = &H2003 THEN sprramposi = byte%
 ELSEIF posi = &H2004 THEN
    sprram(sprramposi) = byte%
    sprramposi = sprramposi + 1
 ELSEIF posi = &H2005 THEN
-   IF scrollwrite = 1 THEN
-      vscroll = byte%
-      scrollwrite = 0
-   ELSE
+   IF scrollwrite = 0 THEN
+      loopy.t = (loopy.t AND &HFFE0) OR (byte% \ 8)
+      loopy.x = byte% AND 7
       hscroll = byte%
       scrollwrite = 1
+   ELSE
+      loopy.t = (loopy.t AND &HC1F)
+      loopy.t = loopy.t OR ((byte% AND 248) * 4)
+      loopy.t = loopy.t OR (byte% AND 7) * 4096
+      scrollwrite = 0
    END IF
 ELSEIF posi = &H2006 THEN        'Change address for VRAM read/write
-   vramposi = (vramposi AND 63) * 256 + byte%
-   firstread = 1
+   IF scrollwrite = 0 THEN
+      loopy.t = (loopy.t AND 255) OR ((byte% AND 63) * 256)
+      scrollwrite = 1
+   ELSE
+      loopy.t = (loopy.t AND &HFF00) OR byte%
+      vramposi = loopy.t
+      sy = ((loopy.t AND &H3E0) \ 4) OR (loopy.t \ 2048)
+      IF (loopy.t AND 2048) THEN sy = sy + 240
+      IF vblank = 1 THEN
+         scrolly(0) = sy
+      ELSE
+         scrolly((lines \ 16) + 1) = sy
+      END IF
+      scrollwrite = 0
+      firstread = 1
+   END IF
 ELSEIF posi = &H2007 THEN        'Write to VRAM, increment "pointer"
    okn = 1
    IF (ppu1 AND 4) THEN okn = 32
@@ -1977,6 +2020,12 @@ IF vblank = 0 THEN
 ELSE
    s = s + 7
    ppustat = ppustat AND 63
+   IF (ppu2 AND 24) THEN vramposi = loopy.t
+   sy = ((loopy.t AND &H3E0) \ 4) OR (loopy.t \ 2048)
+   IF (loopy.t AND 2048) THEN sy = sy + 240
+   scrolly(0) = sy
+   ppu1log(0) = ppu1
+   scrollx(0) = ((loopy.t AND 1024) \ 4) OR ((loopy.t AND 31) * 8) OR loopy.x
    vblank = 0
    'ut = 0
 END IF
