@@ -379,10 +379,10 @@ NEXT cy
 FOR cy = 8 TO 15
    FOR cx = 8 TO 15
       c = vram(&H2FC0 + (cy - 8) * 8 + cx - 8)
-      attr(cx * 2, cy * 2) = c AND 3
-      attr(cx * 2 + 1, cy * 2) = (c \ 4) AND 3
-      attr(cx * 2, cy * 2 + 1) = (c \ 16) AND 3
-      attr(cx * 2 + 1, cy * 2 + 1) = c \ 64
+      attr(cx * 2, cy * 2 - 1) = c AND 3
+      attr(cx * 2 + 1, cy * 2 - 1) = (c \ 4) AND 3
+      attr(cx * 2, cy * 2) = (c \ 16) AND 3
+      attr(cx * 2 + 1, cy * 2) = c \ 64
    NEXT cx
 NEXT cy
 y = 15
