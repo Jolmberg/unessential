@@ -329,56 +329,64 @@ FOR c = 0 TO 15
 NEXT c
 
 'Build the 32*30 tile matrix.
+addr = &H2000
 FOR cy = 0 TO 29
    FOR cx = 0 TO 31
-      bk(cx, cy) = vram(&H2000 + cy * 32 + cx)
+      bk(cx, cy) = vram(addr + cy * 32 + cx)
    NEXT cx
 NEXT cy
+IF mirroring = 1 THEN addr = &H2400
 FOR cy = 0 TO 29
    FOR cx = 32 TO 63
-      bk(cx, cy) = vram(&H2400 + cy * 32 + cx - 32)
+      bk(cx, cy) = vram(addr + cy * 32 + cx - 32)
    NEXT cx
 NEXT cy
+IF mirroring = 1 THEN addr = &H2000 ELSE addr = &H2800
 FOR cy = 30 TO 59
    FOR cx = 0 TO 31
-      bk(cx, cy) = vram(&H2800 + (cy - 30) * 32 + cx)
+      bk(cx, cy) = vram(addr + (cy - 30) * 32 + cx)
    NEXT cx
 NEXT cy
+IF mirroring = 1 THEN addr = &H2400
 FOR cy = 30 TO 59
    FOR cx = 32 TO 63
-      bk(cx, cy) = vram(&H2C00 + (cy - 30) * 32 + cx - 32)
+      bk(cx, cy) = vram(addr + (cy - 30) * 32 + cx - 32)
    NEXT cx
 NEXT cy
+addr = &H23C0
 FOR cy = 0 TO 7
    FOR cx = 0 TO 7
-      c = vram(&H23C0 + cy * 8 + cx)
+      c = vram(addr + cy * 8 + cx)
       attr(cx * 2, cy * 2) = c AND 3
       attr(cx * 2 + 1, cy * 2) = (c \ 4) AND 3
       attr(cx * 2, cy * 2 + 1) = (c \ 16) AND 3
       attr(cx * 2 + 1, cy * 2 + 1) = c \ 64
    NEXT cx
 NEXT cy
+IF mirroring = 1 THEN addr = &H27C0
 FOR cy = 0 TO 7
    FOR cx = 8 TO 15
-      c = vram(&H27C0 + cy * 8 + cx - 8)
+      c = vram(addr + cy * 8 + cx - 8)
       attr(cx * 2, cy * 2) = c AND 3
       attr(cx * 2 + 1, cy * 2) = (c \ 4) AND 3
       attr(cx * 2, cy * 2 + 1) = (c \ 16) AND 3
       attr(cx * 2 + 1, cy * 2 + 1) = c \ 64
    NEXT cx
 NEXT cy
+IF mirroring = 1 THEN addr = &H23C0 ELSE addr = &H2BC0
 FOR cy = 8 TO 15
    FOR cx = 0 TO 7
-      c = vram(&H2BC0 + (cy - 8) * 8 + cx)
+      c = vram(addr + (cy - 8) * 8 + cx)
       attr(cx * 2, cy * 2 - 1) = c AND 3
       attr(cx * 2 + 1, cy * 2 - 1) = (c \ 4) AND 3
       attr(cx * 2, cy * 2) = (c \ 16) AND 3
       attr(cx * 2 + 1, cy * 2) = c \ 64
    NEXT cx
 NEXT cy
+IF mirroring = 1 THEN addr = &H27C0
 FOR cy = 8 TO 15
    FOR cx = 8 TO 15
-      c = vram(&H2FC0 + (cy - 8) * 8 + cx - 8)
+      c = vram(addr + (cy - 8) * 8 + cx - 8)
       attr(cx * 2, cy * 2 - 1) = c AND 3
       attr(cx * 2 + 1, cy * 2 - 1) = (c \ 4) AND 3
       attr(cx * 2, cy * 2) = (c \ 16) AND 3
