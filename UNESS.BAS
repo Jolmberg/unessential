@@ -82,6 +82,7 @@ DECLARE SUB op.iny ()
 DECLARE SUB op.tax ()
 DECLARE SUB op.tay ()
 DECLARE SUB emulate ()
+DECLARE SUB getinput ()
 DEFINT C, R
 'Status: SV1BDIZC
 ' All registers must be shared
@@ -781,31 +782,7 @@ IF s > 113.85 THEN
    END IF
    IF lines = 241 THEN vb
    IF lines = 262 THEN vb: lines = 0
-   in$ = INKEY$
-   IF in$ <> "" THEN
-      SELECT CASE in$
-         CASE "j": pc = 53332
-         CASE "o", "i": ut = ut XOR 1
-         CASE "p": palemu = palemu XOR 1: PALETTE
-         CASE "n": cycles = 27007
-         'CASE "r": CLS : patterntables
-         CASE "d": crappygfxengine
-         CASE "b": bpoint = breakpoint
-         CASE "+": skip = skip + 1
-         CASE "-": IF skip > 1 THEN skip = skip - 1
-         CASE "z": joy1emu = joy1emu XOR 1: PSET (21, 284), POINT(21, 284) XOR 9
-         CASE "x": joy1emu = joy1emu XOR 2: PSET (19, 284), POINT(19, 284) XOR 9
-         CASE "c": joy1emu = joy1emu XOR 4: PSET (14, 284), POINT(14, 284) XOR 9
-         CASE "v": joy1emu = joy1emu XOR 8: PSET (16, 284), POINT(16, 284) XOR 9
-         CASE "s": utstep = 1: ut = 1
-         CASE "r": utstep = 0
-         CASE CHR$(0) + "H": joy1emu = joy1emu XOR 16: PSET (10, 282), POINT(10, 282) XOR 9
-         CASE CHR$(0) + "P": joy1emu = joy1emu XOR 32: PSET (10, 284), POINT(10, 284) XOR 9
-         CASE CHR$(0) + "K": joy1emu = joy1emu XOR 64: PSET (9, 283), POINT(9, 283) XOR 9
-         CASE CHR$(0) + "M": joy1emu = joy1emu XOR 128: PSET (11, 283), POINT(11, 283) XOR 9
-         CASE "q": CLOSE : CLOSE : CLOSE : END
-      END SELECT
-   END IF
+   getinput
 END IF
 
 'DO WHILE INKEY$ = "": LOOP
@@ -967,6 +944,32 @@ EndThisSub:
 
 END FUNCTION
 
+DEFINT A
+SUB getinput
+in$ = INKEY$
+IF in$ <> "" THEN
+   SELECT CASE in$
+      CASE "o", "i": ut = ut XOR 1
+      CASE "p": palemu = palemu XOR 1: PALETTE
+      CASE "b": bpoint = breakpoint
+      CASE "+": skip = skip + 1
+      CASE "-": IF skip > 1 THEN skip = skip - 1
+      CASE "z": joy1emu = joy1emu XOR 1: PSET (21, 284), POINT(21, 284) XOR 9
+      CASE "x": joy1emu = joy1emu XOR 2: PSET (19, 284), POINT(19, 284) XOR 9
+      CASE "c": joy1emu = joy1emu XOR 4: PSET (14, 284), POINT(14, 284) XOR 9
+      CASE "v": joy1emu = joy1emu XOR 8: PSET (16, 284), POINT(16, 284) XOR 9
+      CASE "s": utstep = 1: ut = 1
+      CASE "r": utstep = 0
+      CASE CHR$(0) + "H": joy1emu = joy1emu XOR 16: PSET (10, 282), POINT(10, 282) XOR 9
+      CASE CHR$(0) + "P": joy1emu = joy1emu XOR 32: PSET (10, 284), POINT(10, 284) XOR 9
+      CASE CHR$(0) + "K": joy1emu = joy1emu XOR 64: PSET (9, 283), POINT(9, 283) XOR 9
+      CASE CHR$(0) + "M": joy1emu = joy1emu XOR 128: PSET (11, 283), POINT(11, 283) XOR 9
+      CASE "q": END
+      END SELECT
+   END IF
+END SUB
+
+DEFSNG A
 SUB hagla (x, y, text$)
 FOR o = 1 TO LEN(text$)
    IF ASC(MID$(text$, o, 1)) > 96 AND ASC(MID$(text$, o, 1)) < 123 THEN
@@ -2013,7 +2016,10 @@ hagla 460, 416, "$" + hexpad(anybyte(pc), 2)
 opcode$ = optostr
 COLOR 7
 hagla 478, 416, LCASE$(opcode$)
-IF utstep THEN SLEEP
+IF utstep THEN
+   SLEEP
+   getinput
+END IF
 END SUB
 
 SUB vb
