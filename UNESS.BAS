@@ -472,8 +472,14 @@ IF asize = 0 THEN
          b = 300 + ((sprram(c + 1) AND 240) \ 2)
          FOR cy = sy TO (sy XOR 7) STEP sys
             FOR cx = sx TO (sx XOR 7) STEP sxs
-               IF rp = 0 THEN IF POINT(a + cx, b + cy) > 0 THEN PSET (x + ax, y + bx + 1), sprpal(POINT(a + cx, b + cy) OR rpal)
-               IF rp = 32 THEN IF POINT(x + ax, y + bx + 1) = 0 THEN PSET (x + ax, y + bx + 1), sprpal(POINT(a + cx, b + cy) OR rpal)
+               sprcol = POINT(a + cx, b + cy)
+               IF sprcol AND 3 THEN
+                  IF rp = 0 THEN
+                     PSET (x + ax, y + bx + 1), sprpal(sprcol OR rpal)
+                  ELSEIF (POINT(x + ax, y + bx + 1) AND 3) = 0 THEN
+                     PSET (x + ax, y + bx + 1), sprpal(sprcol OR rpal)
+                  END IF
+               END IF
                ax = ax + 1
             NEXT cx
             bx = bx + 1: ax = 0
@@ -502,9 +508,14 @@ IF asize = 32 THEN
             FOR spr = 8 TO 0 STEP -8
             FOR cy = sy TO (sy XOR 7) STEP sys
                FOR cx = 0 TO 7
-                  IF rp = 0 THEN IF POINT(a + cx, b + cy) > 0 THEN PSET (x + ax, y + bx + 1 + spr), sprpal(POINT(a + cx, b + cy) OR rpal)
-                  IF rp = 32 THEN IF POINT(x + ax, y + bx + 1 + spr) = 0 THEN PSET (x + ax, y + bx + 1 + spr), sprpal(POINT(a + cx, b + cy) OR rpal)
-                  'IF POINT(a + cx, b + cy) > 0 THEN PSET (x + ax, y + bx + 1 + spr), POINT(a + cx, b + cy)
+                  sprcol = POINT(a + cx, b + cy)
+                  IF sprcol AND 3 THEN
+                     IF rp = 0 THEN
+                        PSET (x + ax, y + bx + 1), sprpal(sprcol OR rpal)
+                     ELSEIF (POINT(x + ax, y + bx + 1) AND 3) = 0 THEN
+                        PSET (x + ax, y + bx + 1), sprpal(sprcol OR rpal)
+                     END IF
+                  END IF
                   ax = ax + 1
                NEXT cx
                bx = bx + 1: ax = 0
