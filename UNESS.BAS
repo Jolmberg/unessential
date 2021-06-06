@@ -1051,6 +1051,7 @@ FOR x = 0 TO 8191                         'Read pattern tables
    vram(x) = ASC(byte$)
    posi = posi + 1
 NEXT x
+CLOSE #1
 'Reset vector: FFFC
 'Check reset position:
 pc = bank2(16381)
