@@ -210,9 +210,29 @@ ELSEIF posi = &H2002 THEN
 ELSEIF posi = &H2004 THEN
    anybyte% = sprram(sprramposi)
 ELSEIF posi = &H2007 THEN
-   okn = 1
-   IF (ppu1 AND 4) THEN okn = 32
-   anybyte% = vram(vramposi)
+   IF (ppu1 AND 4) THEN okn = 32 ELSE okn = 1
+   table = vramposi AND &HFC00
+   IF table = &H2400 THEN
+      IF mirroring = 0 THEN
+         anybyte% = vram(vramposi XOR &H400)
+      ELSE
+         anybyte% = vram(vramposi)
+      END IF
+   ELSEIF table = &H2800 THEN
+      IF mirroring = 1 THEN
+         anybyte% = vram(vramposi XOR &H800)
+      ELSE
+         anybyte% = vram(vramposi)
+      END IF
+   ELSEIF table = &H2C00 THEN
+      IF mirroring = 0 THEN
+         anybyte% = vram(vramposi XOR &H400)
+      ELSE
+         anybyte% = vram(vramposi XOR &H800)
+      END IF
+   ELSE
+      anybyte% = vram(vramposi)
+   END IF
    IF firstread = 0 THEN
       vramposi = vramposi + okn
    END IF
@@ -1899,9 +1919,27 @@ ELSEIF posi = &H2006 THEN        'Change address for VRAM read/write
       firstread = 1
    END IF
 ELSEIF posi = &H2007 THEN        'Write to VRAM, increment "pointer"
-   okn = 1
-   IF (ppu1 AND 4) THEN okn = 32
-   IF (vramposi AND &H3F13) = &H3F10 THEN
+IF (ppu1 AND 4) THEN okn = 32 ELSE okn = 1
+   table = vramposi AND &HFC00
+   IF table = &H2400 THEN
+      IF mirroring = 0 THEN
+         vram(vramposi XOR &H400) = byte%
+      ELSE
+         vram(vramposi) = byte%
+      END IF
+   ELSEIF table = &H2800 THEN
+      IF mirroring = 1 THEN
+         vram(vramposi XOR &H800) = byte%
+      ELSE
+         vram(vramposi) = byte%
+      END IF
+   ELSEIF table = &H2C00 THEN
+      IF mirroring = 0 THEN
+         vram(vramposi XOR &H400) = byte%
+      ELSE
+         vram(vramposi XOR &H800) = byte%
+      END IF
+   ELSEIF (vramposi AND &H3F13) = &H3F10 THEN
       vram(vramposi XOR 16) = byte%
    ELSE
       vram(vramposi) = byte%
