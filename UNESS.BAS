@@ -1878,7 +1878,7 @@ ELSEIF posi = &H2005 THEN
    ELSE
       loopy.t = (loopy.t AND &HC1F)
       loopy.t = loopy.t OR ((byte% AND 248) * 4)
-      loopy.t = loopy.t OR (byte% AND 7) * 4096
+      loopy.t = loopy.t OR ((byte% AND 7) * 4096)
       scrollwrite = 0
    END IF
 ELSEIF posi = &H2006 THEN        'Change address for VRAM read/write
@@ -1888,7 +1888,7 @@ ELSEIF posi = &H2006 THEN        'Change address for VRAM read/write
    ELSE
       loopy.t = (loopy.t AND &HFF00) OR byte%
       vramposi = loopy.t
-      sy = ((loopy.t AND &H3E0) \ 4) OR (loopy.t \ 2048)
+      sy = ((loopy.t AND &H3E0) \ 4) OR (loopy.t \ 4096)
       IF (loopy.t AND 2048) THEN sy = sy + 240
       IF vblank = 1 THEN
          scrolly(0) = sy
@@ -2047,7 +2047,7 @@ ELSE
    s = s + 7
    ppustat = ppustat AND 63
    IF (ppu2 AND 24) THEN vramposi = loopy.t
-   sy = ((loopy.t AND &H3E0) \ 4) OR (loopy.t \ 2048)
+   sy = ((loopy.t AND &H3E0) \ 4) OR (loopy.t \ 4096)
    IF (loopy.t AND 2048) THEN sy = sy + 240
    scrolly(0) = sy
    ppu1log(0) = ppu1
