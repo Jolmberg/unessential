@@ -1090,14 +1090,14 @@ hagla 280, 33, "reset vector:"
 hagla 292, 41, "nmi vector:"
 hagla 290, 49, "brk vector:"
 COLOR 11
-hagla 340, 1, "$0"
+hagla 340, 1, "0"
 IF mirroring = 0 THEN
    hagla 340, 9, "horizontal"
 ELSE
    hagla 340, 9, "vertical"
 END IF
-hagla 340, 17, "$" + LCASE$(HEX$(prgs))
-hagla 340, 25, "$1"
+hagla 340, 17, LTRIM$(STR$(prgs))
+hagla 340, 25, "1"
 hagla 340, 33, "$" + LCASE$(HEX$(pc - 1))
 hagla 340, 41, "$" + LCASE$(HEX$(nmi))
 hagla 340, 49, "$" + LCASE$(HEX$(brk))
