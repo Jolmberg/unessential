@@ -299,7 +299,7 @@ END IF
 END SUB
 
 DEFINT A-B, X-Y
-SUB crappygfxengine        'Probably the worst graphics engine ever created!
+SUB crappygfxengine
 'Background.
 'IF (ppu2 AND 8) THEN
 DIM imgpal(15)
@@ -349,186 +349,151 @@ FOR c = 0 TO 15
    'PRINT "ß";
 NEXT c
 
-'Build the 32*30 tile matrix.
-addr = &H2000
-FOR cy = 0 TO 29
-   FOR cx = 0 TO 31
-      bk(cx, cy) = vram(addr + cy * 32 + cx)
-   NEXT cx
-NEXT cy
-IF mirroring = 1 THEN addr = &H2400
-FOR cy = 0 TO 29
-   FOR cx = 32 TO 63
-      bk(cx, cy) = vram(addr + cy * 32 + cx - 32)
-   NEXT cx
-NEXT cy
-IF mirroring = 1 THEN addr = &H2000 ELSE addr = &H2800
-FOR cy = 30 TO 59
-   FOR cx = 0 TO 31
-      bk(cx, cy) = vram(addr + (cy - 30) * 32 + cx)
-   NEXT cx
-NEXT cy
-IF mirroring = 1 THEN addr = &H2400
-FOR cy = 30 TO 59
-   FOR cx = 32 TO 63
-      bk(cx, cy) = vram(addr + (cy - 30) * 32 + cx - 32)
-   NEXT cx
-NEXT cy
-addr = &H23C0
-FOR cy = 0 TO 7
-   FOR cx = 0 TO 7
-      c = vram(addr + cy * 8 + cx)
-      attr(cx * 2, cy * 2) = c AND 3
-      attr(cx * 2 + 1, cy * 2) = (c \ 4) AND 3
-      attr(cx * 2, cy * 2 + 1) = (c \ 16) AND 3
-      attr(cx * 2 + 1, cy * 2 + 1) = c \ 64
-   NEXT cx
-NEXT cy
-IF mirroring = 1 THEN addr = &H27C0
-FOR cy = 0 TO 7
-   FOR cx = 8 TO 15
-      c = vram(addr + cy * 8 + cx - 8)
-      attr(cx * 2, cy * 2) = c AND 3
-      attr(cx * 2 + 1, cy * 2) = (c \ 4) AND 3
-      attr(cx * 2, cy * 2 + 1) = (c \ 16) AND 3
-      attr(cx * 2 + 1, cy * 2 + 1) = c \ 64
-   NEXT cx
-NEXT cy
-IF mirroring = 1 THEN addr = &H23C0 ELSE addr = &H2BC0
-FOR cy = 8 TO 15
-   FOR cx = 0 TO 7
-      c = vram(addr + (cy - 8) * 8 + cx)
-      attr(cx * 2, cy * 2 - 1) = c AND 3
-      attr(cx * 2 + 1, cy * 2 - 1) = (c \ 4) AND 3
-      attr(cx * 2, cy * 2) = (c \ 16) AND 3
-      attr(cx * 2 + 1, cy * 2) = c \ 64
-   NEXT cx
-NEXT cy
-IF mirroring = 1 THEN addr = &H27C0
-FOR cy = 8 TO 15
-   FOR cx = 8 TO 15
-      c = vram(addr + (cy - 8) * 8 + cx - 8)
-      attr(cx * 2, cy * 2 - 1) = c AND 3
-      attr(cx * 2 + 1, cy * 2 - 1) = (c \ 4) AND 3
-      attr(cx * 2, cy * 2) = (c \ 16) AND 3
-      attr(cx * 2 + 1, cy * 2) = c \ 64
-   NEXT cx
-NEXT cy
-y = 15
-x = 15
-FOR b = 0 TO 15
-   cxa = scrollx(b) \ 16
-   cxb = scrollx(b) AND 15
-   IF scrolly(b) <> -1 THEN
-      cya = scrolly(b) \ 16
-      cyb = scrolly(b) AND 15
-      cym = scrolly(b) AND 7
-   END IF
-   FOR a = 0 TO 15
-      c = a + cxa
-      d = b + cya
-      IF c > 31 THEN c = c - 32
-      IF d > 29 THEN d = d - 30
-      'LOCATE 10, 40: PRINT c
-      LINE ((cxb XOR 15) + a * 16, (cyb XOR 15) + b * 16)-((cxb XOR 15) + a * 16 + 15, (cym XOR 15) + b * 16 + 15), attr(c, d) * 4, BF
-   NEXT a
-NEXT b
-
-okning = 0
-FOR bb0 = 0 TO 29
-   IF (bb0 AND 1) = 0 THEN
-      i = bb0 \ 2
-      cx = scrollx(i) \ 8
-      cxm = scrollx(i) AND 7
-      IF scrolly(i) <> -1 THEN
-         cy = scrolly(i) \ 8
-         cym = scrolly(i) AND 7
+IF ppu2 AND 8 THEN
+   'Build the 32*30 tile matrix.
+   addr = &H2000
+   FOR cy = 0 TO 29
+      FOR cx = 0 TO 31
+         bk(cx, cy) = vram(addr + cy * 32 + cx)
+      NEXT cx
+   NEXT cy
+   IF mirroring = 1 THEN addr = &H2400
+   FOR cy = 0 TO 29
+      FOR cx = 32 TO 63
+         bk(cx, cy) = vram(addr + cy * 32 + cx - 32)
+      NEXT cx
+   NEXT cy
+   IF mirroring = 1 THEN addr = &H2000 ELSE addr = &H2800
+   FOR cy = 30 TO 59
+      FOR cx = 0 TO 31
+         bk(cx, cy) = vram(addr + (cy - 30) * 32 + cx)
+      NEXT cx
+   NEXT cy
+   IF mirroring = 1 THEN addr = &H2400
+   FOR cy = 30 TO 59
+      FOR cx = 32 TO 63
+         bk(cx, cy) = vram(addr + (cy - 30) * 32 + cx - 32)
+      NEXT cx
+   NEXT cy
+   addr = &H23C0
+   FOR cy = 0 TO 7
+      FOR cx = 0 TO 7
+         c = vram(addr + cy * 8 + cx)
+         attr(cx * 2, cy * 2) = c AND 3
+         attr(cx * 2 + 1, cy * 2) = (c \ 4) AND 3
+         attr(cx * 2, cy * 2 + 1) = (c \ 16) AND 3
+         attr(cx * 2 + 1, cy * 2 + 1) = c \ 64
+      NEXT cx
+   NEXT cy
+   IF mirroring = 1 THEN addr = &H27C0
+   FOR cy = 0 TO 7
+      FOR cx = 8 TO 15
+         c = vram(addr + cy * 8 + cx - 8)
+         attr(cx * 2, cy * 2) = c AND 3
+         attr(cx * 2 + 1, cy * 2) = (c \ 4) AND 3
+         attr(cx * 2, cy * 2 + 1) = (c \ 16) AND 3
+         attr(cx * 2 + 1, cy * 2 + 1) = c \ 64
+    NEXT cx
+   NEXT cy
+   IF mirroring = 1 THEN addr = &H23C0 ELSE addr = &H2BC0
+   FOR cy = 8 TO 15
+      FOR cx = 0 TO 7
+         c = vram(addr + (cy - 8) * 8 + cx)
+         attr(cx * 2, cy * 2 - 1) = c AND 3
+         attr(cx * 2 + 1, cy * 2 - 1) = (c \ 4) AND 3
+         attr(cx * 2, cy * 2) = (c \ 16) AND 3
+         attr(cx * 2 + 1, cy * 2) = c \ 64
+      NEXT cx
+   NEXT cy
+   IF mirroring = 1 THEN addr = &H27C0
+   FOR cy = 8 TO 15
+      FOR cx = 8 TO 15
+         c = vram(addr + (cy - 8) * 8 + cx - 8)
+         attr(cx * 2, cy * 2 - 1) = c AND 3
+         attr(cx * 2 + 1, cy * 2 - 1) = (c \ 4) AND 3
+         attr(cx * 2, cy * 2) = (c \ 16) AND 3
+         attr(cx * 2 + 1, cy * 2) = c \ 64
+      NEXT cx
+   NEXT cy
+   y = 15
+   x = 15
+   FOR b = 0 TO 15
+      cxa = scrollx(b) \ 16
+      cxb = scrollx(b) AND 15
+      IF scrolly(b) <> -1 THEN
+         cya = scrolly(b) \ 16
+         cyb = scrolly(b) AND 15
+         cym = scrolly(b) AND 7
       END IF
-      okning = (ppu1log(i) AND 16) * 8
-      scrollx(i) = -1
-      scrolly(i) = -1
-   END IF
-   bb = bb0 + cy
-   FOR ab = cx TO cx + 31
-      bbb = bb
-      IF bbb > 59 THEN bbb = bbb - 60
-      abb = ab
-      IF abb > 63 THEN abb = abb - 64
-      'LOCATE 1, 40: PRINT ASC(MID$(bytes$, c, 1))
-      a = okning + ((bk(abb, bbb) AND 15) * 8)
-      b = 300 + ((bk(abb, bbb) AND 240) / 2)
-      GET (a, b)-(a + 7, b + 7), tile
-      'PSET (a, b), 12
-      PUT (x - cxm, y - cym), tile, OR
-      x = x + 8
-      IF x = 271 THEN y = y + 8: x = 15
-   NEXT ab
-NEXT bb0
-'END IF
+      FOR a = 0 TO 15
+         c = a + cxa
+         d = b + cya
+         IF c > 31 THEN c = c - 32
+         IF d > 29 THEN d = d - 30
+         'LOCATE 10, 40: PRINT c
+         LINE ((cxb XOR 15) + a * 16, (cyb XOR 15) + b * 16)-((cxb XOR 15) + a * 16 + 15, (cym XOR 15) + b * 16 + 15), attr(c, d) * 4, BF
+      NEXT a
+   NEXT b
+
+   okning = 0
+   FOR bb0 = 0 TO 29
+      IF (bb0 AND 1) = 0 THEN
+         i = bb0 \ 2
+         cx = scrollx(i) \ 8
+         cxm = scrollx(i) AND 7
+         IF scrolly(i) <> -1 THEN
+            cy = scrolly(i) \ 8
+            cym = scrolly(i) AND 7
+         END IF
+         okning = (ppu1log(i) AND 16) * 8
+         scrollx(i) = -1
+         scrolly(i) = -1
+      END IF
+      bb = bb0 + cy
+      FOR ab = cx TO cx + 31
+         bbb = bb
+         IF bbb > 59 THEN bbb = bbb - 60
+         abb = ab
+         IF abb > 63 THEN abb = abb - 64
+         'LOCATE 1, 40: PRINT ASC(MID$(bytes$, c, 1))
+         a = okning + ((bk(abb, bbb) AND 15) * 8)
+         b = 300 + ((bk(abb, bbb) AND 240) / 2)
+         GET (a, b)-(a + 7, b + 7), tile
+         'PSET (a, b), 12
+         PUT (x - cxm, y - cym), tile, OR
+         x = x + 8
+         IF x = 271 THEN y = y + 8: x = 15
+      NEXT ab
+   NEXT bb0
+END IF
 
 'Sprites.
-'IF (ppu2 AND 16) THEN
-asize = (ppu1 AND 32)
-okning = (ppu1 AND 8) * 16
-IF asize = 0 THEN
-   FOR c = 0 TO 252 STEP 4
-      y = sprram(c)
-      IF y < &HF0 THEN
-         y = y + 15
-         x = sprram(c + 3) + 15
-         attr = sprram(c + 2)
-         IF (attr AND 128) THEN
-            sy = 7: sys = -1
-         ELSE
-            sy = 0: sys = 1
-         END IF
-         IF (attr AND 64) THEN
-            sx = 7: sxs = -1
-         ELSE
-            sx = 0: sxs = 1
-         END IF
-         rp = (attr AND 32)
-         rpal = (attr AND 3) * 4
-         a = okning + ((sprram(c + 1) AND 15) * 8)
-         b = 300 + ((sprram(c + 1) AND 240) \ 2)
-         FOR cy = sy TO (sy XOR 7) STEP sys
-            FOR cx = sx TO (sx XOR 7) STEP sxs
-               sprcol = POINT(a + cx, b + cy)
-               IF sprcol AND 3 THEN
-                  IF rp = 0 THEN
-                     PSET (x + ax, y + bx + 1), sprpal(sprcol OR rpal)
-                  ELSEIF (POINT(x + ax, y + bx + 1) AND 3) = 0 THEN
-                     PSET (x + ax, y + bx + 1), sprpal(sprcol OR rpal)
-                  END IF
-               END IF
-               ax = ax + 1
-            NEXT cx
-            bx = bx + 1: ax = 0
-         NEXT cy
-         ax = 0: bx = 0
-      END IF
-   NEXT c
-END IF
-IF asize = 32 THEN
-   FOR c = 0 TO 252 STEP 4
-      y = sprram(c)
-      IF y < &HF0 THEN
-      y = y + 15
-         x = sprram(c + 3) + 15
-         attr = sprram(c + 2)
-         IF (attr AND 128) THEN
-            sy = 7: sys = -1
-         ELSE
-            sy = 0: sys = 1
-         END IF
-         rp = (attr AND 32)
-         rpal = (attr AND 3) * 4
-         IF (attr AND 64) = 0 THEN
+IF ppu2 AND 16 THEN
+   asize = (ppu1 AND 32)
+   okning = (ppu1 AND 8) * 16
+   IF asize = 0 THEN
+      FOR c = 0 TO 252 STEP 4
+         y = sprram(c)
+         IF y < &HF0 THEN
+            y = y + 15
+            x = sprram(c + 3) + 15
+            attr = sprram(c + 2)
+            IF (attr AND 128) THEN
+               sy = 7: sys = -1
+            ELSE
+               sy = 0: sys = 1
+            END IF
+            IF (attr AND 64) THEN
+               sx = 7: sxs = -1
+            ELSE
+               sx = 0: sxs = 1
+            END IF
+            rp = (attr AND 32)
+            rpal = (attr AND 3) * 4
             a = okning + ((sprram(c + 1) AND 15) * 8)
             b = 300 + ((sprram(c + 1) AND 240) \ 2)
-            FOR spr = 8 TO 0 STEP -8
             FOR cy = sy TO (sy XOR 7) STEP sys
-               FOR cx = 0 TO 7
+               FOR cx = sx TO (sx XOR 7) STEP sxs
                   sprcol = POINT(a + cx, b + cy)
                   IF sprcol AND 3 THEN
                      IF rp = 0 THEN
@@ -542,16 +507,49 @@ IF asize = 32 THEN
                bx = bx + 1: ax = 0
             NEXT cy
             ax = 0: bx = 0
-            a = a - 8
-            IF a = 120 OR a = -8 THEN a = a + 128: b = b - 8
-            NEXT spr
          END IF
-      END IF
-   NEXT c
+      NEXT c
+   ELSEIF asize = 32 THEN
+      FOR c = 0 TO 252 STEP 4
+         y = sprram(c)
+         IF y < &HF0 THEN
+         y = y + 15
+            x = sprram(c + 3) + 15
+            attr = sprram(c + 2)
+            IF (attr AND 128) THEN
+               sy = 7: sys = -1
+            ELSE
+               sy = 0: sys = 1
+            END IF
+            rp = (attr AND 32)
+            rpal = (attr AND 3) * 4
+            IF (attr AND 64) = 0 THEN
+               a = okning + ((sprram(c + 1) AND 15) * 8)
+               b = 300 + ((sprram(c + 1) AND 240) \ 2)
+               FOR spr = 8 TO 0 STEP -8
+               FOR cy = sy TO (sy XOR 7) STEP sys
+                  FOR cx = 0 TO 7
+                     sprcol = POINT(a + cx, b + cy)
+                     IF sprcol AND 3 THEN
+                        IF rp = 0 THEN
+                           PSET (x + ax, y + bx + 1), sprpal(sprcol OR rpal)
+                        ELSEIF (POINT(x + ax, y + bx + 1) AND 3) = 0 THEN
+                           PSET (x + ax, y + bx + 1), sprpal(sprcol OR rpal)
+                        END IF
+                     END IF
+                     ax = ax + 1
+                  NEXT cx
+                  bx = bx + 1: ax = 0
+               NEXT cy
+               ax = 0: bx = 0
+               a = a - 8
+               IF a = 120 OR a = -8 THEN a = a + 128: b = b - 8
+               NEXT spr
+            END IF
+         END IF
+      NEXT c
+   END IF
 END IF
-
-
-
 END SUB
 
 DEFSNG A-B, X-Y
