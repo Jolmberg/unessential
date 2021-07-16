@@ -107,6 +107,7 @@ DIM SHARED palemu AS INTEGER, frame AS INTEGER
 DIM SHARED bank1(16383) AS INTEGER, bank2(16383) AS INTEGER
 DIM SHARED ram(2047) AS INTEGER, vram(16383) AS INTEGER
 DIM SHARED loopy.t AS INTEGER, loopy.x AS INTEGER
+DIM SHARED fpstimer, fps AS INTEGER
 ON ERROR GOTO 14
 GOTO 7
 14
@@ -170,6 +171,7 @@ reg.sp = 255                       'Stack pointer should be 255(!?)
 header
 LINE (459, 407)-(639, 407), 8, , 21845
 patterntables
+lasttimer = TIMER
 emulate                            'Start emulating!
 
 FUNCTION abso&
@@ -1089,6 +1091,7 @@ hagla 295, 25, "chr banks:"
 hagla 280, 33, "reset vector:"
 hagla 292, 41, "nmi vector:"
 hagla 290, 49, "brk vector:"
+hagla 322, 57, "fps:"
 COLOR 11
 hagla 340, 1, "0"
 IF mirroring = 0 THEN
@@ -2078,7 +2081,17 @@ IF vblank = 0 THEN
       pc = nmi
    END IF
    frame = frame + 1
-   IF frame = skip THEN frame = 0: crappygfxengine 'Draw graphics...
+   IF frame >= skip THEN frame = 0: crappygfxengine 'Draw graphics...
+   fps = fps + 1
+   newtimer = TIMER
+   fpstime = newtimer - fpstimer
+   IF fpstime >= 1 THEN
+      IF fpstime >= 2 THEN fps = 0
+      LINE (340, 57)-(360, 64), 0, BF
+      hagla 340, 57, LTRIM$(STR$(fps))
+      fps = 0
+      fpstimer = newtimer
+   END IF
 ELSE
    s = s + 7
    ppustat = ppustat AND 63
