@@ -108,6 +108,7 @@ DIM SHARED bank1(16383) AS INTEGER, bank2(16383) AS INTEGER
 DIM SHARED ram(2047) AS INTEGER, vram(16383) AS INTEGER
 DIM SHARED loopy.t AS INTEGER, loopy.x AS INTEGER
 DIM SHARED fpstimer, fps AS INTEGER
+DIM SHARED second AS LONG, waste AS LONG
 ON ERROR GOTO 14
 GOTO 7
 14
@@ -556,6 +557,13 @@ END SUB
 
 DEFSNG A-B, X-Y
 SUB emulate
+future! = TIMER + 1
+second = 0
+FOR x& = 0 TO 2147483647
+    second = second + 1
+    IF TIMER > future! THEN EXIT FOR
+NEXT
+
 byte$ = " "
 'ut = 1
 'OPEN "debug.log" FOR BINARY AS #9
@@ -2087,11 +2095,21 @@ IF vblank = 0 THEN
    fpstime = newtimer - fpstimer
    IF fpstime >= 1 THEN
       IF fpstime >= 2 THEN fps = 0
+      IF fps <> 60 THEN
+         waste = waste + second / 60 - second / fps
+         IF waste < 0 THEN waste = 0
+      END IF
       LINE (340, 57)-(360, 64), 0, BF
       hagla 340, 57, LTRIM$(STR$(fps))
       fps = 0
       fpstimer = newtimer
    END IF
+   future! = TIMER + 1
+   c& = 0
+   FOR w& = 0 TO waste
+      c& = c& + 1
+      IF TIMER > future! THEN EXIT FOR
+   NEXT w&
 ELSE
    s = s + 7
    ppustat = ppustat AND 63
