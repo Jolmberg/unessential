@@ -1102,6 +1102,7 @@ IF in$ <> "" THEN
       CASE "v": joy1emu = joy1emu XOR 8: PSET (16, 284), POINT(16, 284) XOR 9
       CASE "s": utstep = 1: ut = 1
       CASE "r": utstep = 0
+      CASE "R": pc = bank2(16381): pc = pc * 256 + bank2(16380)
       CASE CHR$(0) + "H": joy1emu = joy1emu XOR 16: PSET (10, 282), POINT(10, 282) XOR 9
       CASE CHR$(0) + "P": joy1emu = joy1emu XOR 32: PSET (10, 284), POINT(10, 284) XOR 9
       CASE CHR$(0) + "K": joy1emu = joy1emu XOR 64: PSET (9, 283), POINT(9, 283) XOR 9
