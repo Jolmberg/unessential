@@ -1,3 +1,8 @@
+DECLARE SUB loadfreq ()
+DECLARE SUB cacophony ()
+DECLARE SUB sweep ()
+DECLARE FUNCTION pulse1mute% ()
+DECLARE FUNCTION pulse2mute% ()
 DECLARE FUNCTION optostr$ ()
 DECLARE FUNCTION str.imm$ ()
 DECLARE FUNCTION str.zp$ ()
@@ -86,7 +91,9 @@ DECLARE SUB getinput ()
 DEFINT C, R
 'Status: SV1BDIZC
 ' All registers must be shared
+PLAY "t240mll64"
 loadfont
+loadfreq
 DIM SHARED reg.a AS INTEGER, reg.x AS INTEGER, reg.y AS INTEGER
 DIM SHARED reg.s AS INTEGER, pc AS LONG, reg.sp AS INTEGER
 DIM SHARED nmi AS LONG, brk AS LONG
@@ -109,6 +116,20 @@ DIM SHARED ram(2047) AS INTEGER, vram(16383) AS INTEGER
 DIM SHARED loopy.t AS INTEGER, loopy.x AS INTEGER
 DIM SHARED fpstimer, fps AS INTEGER
 DIM SHARED second AS LONG, waste AS LONG
+DIM SHARED pulse12 AS INTEGER, pulse13 AS INTEGER
+DIM SHARED apu(23) AS INTEGER
+DIM SHARED freq(2047) AS INTEGER
+DIM SHARED octaves$(6), notes$(11), lengths(31) AS INTEGER
+DIM SHARED apumux AS INTEGER, apunote$(2)
+DIM SHARED pulse1len AS INTEGER, pulse2len AS INTEGER
+DIM SHARED pulse1period AS INTEGER, pulse2period AS INTEGER
+DIM SHARED trianglelen AS INTEGER, trianglelin AS INTEGER
+DIM SHARED trianglereload AS INTEGER
+DIM SHARED sweep1div AS INTEGER, sweep2div AS INTEGER
+DIM SHARED sweep1reload AS INTEGER, sweep2reload AS INTEGER
+DIM SHARED pulse1div AS INTEGER, pulse2div AS INTEGER
+DIM SHARED pulse1decay AS INTEGER, pulse2decay AS INTEGER
+DIM SHARED pulse1start AS INTEGER, pulse2start AS INTEGER
 ON ERROR GOTO 14
 GOTO 7
 14
@@ -281,6 +302,99 @@ hagla 450, 1, LCASE$(HEX$(bp4 \ 4096) + HEX$(bp3 \ 256) + HEX$(bp2 \ 16) + HEX$(
 RETURN
 END FUNCTION
 
+DEFINT A
+SUB cacophony
+IF ((apu(0) AND 32) <> 32) AND pulse1len > 0 THEN pulse1len = pulse1len - 2
+IF ((apu(4) AND 32) <> 32) AND pulse2len > 0 THEN pulse2len = pulse2len - 1
+FOR x = 0 TO 3
+   IF pulse1start = 0 THEN
+      IF pulse1div = 0 THEN
+         pulse1div = apu(0) AND 15
+         IF pulse1decay = 0 THEN
+            IF apu(0) AND 32 THEN pulse1decay = 15
+         ELSE
+            pulse1decay = pulse1decay - 1
+         END IF
+      ELSE
+         pulse1div = pulse1div - 1
+      END IF
+   ELSE
+      pulse1start = 0
+      pulse1decay = 15
+      pulse1div = apu(0) AND 15
+   END IF
+   IF pulse2start = 0 THEN
+      IF pulse2div = 0 THEN
+         pulse2div = apu(4) AND 15
+         IF pulse2decay = 0 THEN
+            IF apu(4) AND 32 THEN pulse2decay = 15
+         ELSE
+            pulse2decay = pulse2decay - 1
+         END IF
+      ELSE
+         pulse2div = pulse2div - 1
+      END IF
+   ELSE
+      pulse2start = 0
+      pulse2decay = 15
+      pulse2div = apu(4) AND 15
+   END IF
+NEXT x
+
+IF trianglereload THEN
+   trianglelin = apu(8) AND 127
+ELSEIF trianglelin > 0 THEN
+   trianglelin = trianglelin - 4
+END IF
+IF ((apu(8) AND 128) <> 128) AND trianglelen > 0 THEN trianglelen = trianglelen - 4
+IF NOT (apu(8) AND 128) THEN trianglereload = 0
+
+IF apumux = 0 THEN
+   t1 = apu(2) OR ((apu(3) AND 7) * 256)
+   IF apu(0) AND 16 THEN v1 = apu(0) AND 15 ELSE v1 = pulse1decay
+   IF pulse1len > 0 AND t1 > 8 AND v1 > 0 AND pulse1mute% = 0 THEN
+      p1 = freq(t1)
+      p$ = octaves$(INT(p1 / 16)) + notes$(p1 AND 15)
+      apunote$(0) = p$
+   ELSE
+      apunote$(0) = ""
+   END IF
+ELSEIF apumux = 1 THEN
+   t2 = apu(6) OR ((apu(7) AND 7) * 256)
+   IF apu(4) AND 16 THEN v2 = apu(4) AND 15 ELSE v2 = pulse2decay
+   IF pulse2len > 0 AND t2 > 8 AND v2 > 0 AND pulse2mute% = 0 THEN
+      p2 = freq(t2)
+      p$ = octaves$(INT(p2 / 16)) + notes$(p2 AND 15)
+      apunote$(1) = p$
+   ELSE
+      apunote$(1) = ""
+   END IF
+ELSEIF apumux = 2 THEN
+   t3 = apu(10) OR ((apu(11) AND 7) * 256)
+   IF trianglelin > 0 AND trianglelen > 0 THEN
+      p3 = freq(INT(t3 * 2))
+      p$ = octaves$(INT(p3 / 16)) + notes$(p3 AND 15)
+      apunote$(2) = p$
+   ELSE
+      apunote$(2) = ""
+   END IF
+END IF
+p% = 0
+IF fps <= 64 THEN
+   FOR x = apumux TO apumux + 2
+      y = x MOD 3
+      IF apunote$(y) <> "" THEN
+         PLAY apunote$(y)
+         p% = 1
+         EXIT FOR
+      END IF
+   NEXT x
+   IF p% = 0 THEN PLAY "p64"
+END IF
+apumux = (apumux + 1) MOD 3
+END SUB
+
+DEFSNG A
 SUB config                          'Read the cfg file (rom directory) :)
 OPEN "uness.cfg" FOR INPUT AS #10
 INPUT #10, o$
@@ -1148,6 +1262,39 @@ GOTO 11
 
 END SUB
 
+SUB loadfreq
+OPEN "FREQ.DAT" FOR BINARY AS #7
+byte$ = " "
+index = 0
+WHILE index < 2048
+   GET #7, , byte$
+   f% = ASC(byte$)
+   GET #7, , byte$
+   c% = ASC(byte$)
+   FOR x = 1 TO c%
+      freq(index) = f%
+      index = index + 1
+   NEXT x
+WEND
+CLOSE #7
+notes$(0) = "c": notes$(1) = "c#": notes$(2) = "d": notes$(3) = "d#"
+notes$(4) = "e": notes$(5) = "f": notes$(6) = "f#": notes$(7) = "g"
+notes$(8) = "g#": notes$(9) = "a": notes$(10) = "a#": notes$(11) = "b"
+FOR x = 0 TO 6
+   octaves$(x) = "o" + CHR$(48 + x)
+NEXT x
+FOR x = 3 TO 31 STEP 2
+   lengths(x) = x - 1
+NEXT x
+lengths(0) = 10: lengths(1) = 254: lengths(2) = 20: lengths(4) = 40
+lengths(6) = 80: lengths(8) = 160: lengths(10) = 60: lengths(12) = 14
+lengths(14) = 26
+FOR x = 0 TO 14 STEP 2
+   lengths(16 + x) = INT(lengths(x) * 1.2)
+NEXT x
+
+END SUB
+
 DEFINT C, R
 SUB moveup
 DIM block(180, 14)
@@ -1880,6 +2027,27 @@ b = anybyte((c + 1) AND 255)
 pre = a + b * 256
 END FUNCTION
 
+DEFINT A
+FUNCTION pulse1mute%
+period = apu(2) + (apu(3) AND 7) * 256
+IF period < 8 THEN pulse1mute% = 1: EXIT FUNCTION
+shift = apu(1) AND 7
+delta = INT(period / (2 ^ shift))
+IF apu(1) AND 8 THEN delta = -delta - 1
+IF period + delta > &H7FF THEN pulse1mute% = 1 ELSE pulse1mute% = 0
+END FUNCTION
+
+FUNCTION pulse2mute%
+period = apu(6) + (apu(7) AND 7) * 256
+IF period < 8 THEN pulse2mute% = 1: EXIT FUNCTION
+shift = apu(5) AND 7
+delta = INT(period / (2 ^ shift))
+IF apu(5) AND 8 THEN delta = -delta
+IF period + delta > &H7FF THEN pulse2mute% = 1 ELSE pulse2mute% = 0
+
+END FUNCTION
+
+DEFSNG A
 SUB push (r AS INTEGER)
 ram(256 + reg.sp) = r
 reg.sp = reg.sp - 1
@@ -1966,8 +2134,29 @@ ELSEIF posi = &H4016 THEN
    ELSE
       IF joy1reset = 1 THEN joy1reset = 0: joy1reads = 1
    END IF
+ELSEIF posi >= &H4000 AND posi <= &H4017 THEN
+   apu(posi AND 31) = byte%
+   IF posi = &H4001 THEN
+      sweep1reload = 1
+   ELSEIF posi = &H4003 THEN
+      IF apu(&H15) AND 1 THEN pulse1len = lengths(INT(byte% / 8))
+      pulse1start = 1
+   ELSEIF posi = &H4005 THEN
+      sweep2reload = 1
+   ELSEIF posi = &H4007 THEN
+      IF apu(&H15) AND 2 THEN pulse2len = lengths(INT(byte% / 8))
+      pulse2start = 1
+   ELSEIF posi = &H4008 THEN
+      IF byte% AND 128 THEN trianglelin = byte% AND 127
+   ELSEIF posi = &H400B THEN
+      IF apu(&H15) AND 4 THEN trianglelen = lengths(INT(byte% / 8))
+      trianglereload = 1
+   ELSEIF posi = &H4015 THEN
+      IF byte% AND 1 = 0 THEN pulse1len = 0
+      IF byte% AND 2 = 0 THEN pulse2len = 0
+      IF byte% AND 4 = 0 THEN trianglelen = 0
+   END IF
 END IF
-
 END SUB
 
 SUB save
@@ -2020,6 +2209,50 @@ END FUNCTION
 FUNCTION str.zpy$
 str.zpy = " $" + hexpad$(anybyte(pc + 1), 2) + ", Y"
 END FUNCTION
+
+SUB sweep
+
+IF apu(1) AND 128 THEN
+   muted = pulse1mute%
+   sweep1div = sweep1div - 1
+   IF sweep1div = 0 THEN
+      shift = apu(1) AND 7
+      period = apu(2) + (apu(3) AND 7) * 256
+      delta = INT(period / (2 ^ shift))
+      IF apu(1) AND 8 THEN delta = -delta - 1
+      period = (period + delta)
+      IF muted = 0 THEN
+         period = period AND &H7FF
+         apu(2) = period AND 255
+         apu(3) = (apu(3) AND 248) OR INT(period / 256)
+      END IF
+      sweep1div = ((apu(1) AND 112) / 16)
+   ELSEIF sweep1reload THEN
+      sweep1reload = 0
+      sweep1div = ((apu(1) AND 112) / 16)
+   END IF
+END IF
+IF apu(5) AND 128 THEN
+   muted = pulse2mute%
+   sweep2div = sweep2div - 1
+   IF sweep2div = 0 THEN
+      shift = apu(5) AND 7
+      period = apu(6) + (apu(7) AND 7) * 256
+      delta = INT(period / (2 ^ shift))
+      IF apu(5) AND 8 THEN delta = -delta - 1
+      period = (period + delta)
+      IF muted = 0 THEN
+         period = period AND &H7FF
+         apu(6) = period AND 255
+         apu(7) = (apu(7) AND 248) OR INT(period / 256)
+      END IF
+      sweep1div = ((apu(1) AND 112) / 16)
+   ELSEIF sweep2reload THEN
+      sweep2reload = 0
+      sweep2div = ((apu(5) AND 112) / 16)
+   END IF
+END IF
+END SUB
 
 DEFSNG A
 SUB utskrift
@@ -2089,6 +2322,7 @@ IF vblank = 0 THEN
       pc = nmi
    END IF
    frame = frame + 1
+   cacophony
    IF frame >= skip THEN frame = 0: crappygfxengine 'Draw graphics...
    fps = fps + 1
    newtimer = TIMER
@@ -2110,6 +2344,7 @@ IF vblank = 0 THEN
       c& = c& + 1
       IF TIMER > future! THEN EXIT FOR
    NEXT w&
+   sweep
 ELSE
    s = s + 7
    ppustat = ppustat AND 63
@@ -2121,6 +2356,7 @@ ELSE
    scrollx(0) = ((loopy.t AND 1024) \ 4) OR ((loopy.t AND 31) * 8) OR loopy.x
    vblank = 0
    'ut = 0
+   sweep
 END IF
 END SUB
 
