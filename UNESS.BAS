@@ -139,7 +139,7 @@ PRINT "If this was caused by the file requester, don't worry about it."
 PRINT "If it was caused by something else, please mail us."
 END
 7 firstread = 1
-skip = 2
+skip = 1
 'uNESsential NES emulator. Version 0.20+
 '
 'Changes:
