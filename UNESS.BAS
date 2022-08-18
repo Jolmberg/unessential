@@ -13,20 +13,20 @@ DECLARE FUNCTION str.absx$ ()
 DECLARE FUNCTION str.absy$ ()
 DECLARE FUNCTION str.pre$ ()
 DECLARE FUNCTION str.post$ ()
-DECLARE FUNCTION hexpad$ (n&, p&)
+DECLARE FUNCTION hexpad$ (n&, p%)
 DECLARE SUB save ()
 DECLARE SUB vb ()
 DECLARE SUB config ()
 DECLARE FUNCTION filerequest$ ()
-DECLARE FUNCTION zpx& ()
-DECLARE FUNCTION zpy& ()
+DECLARE FUNCTION zpx% ()
+DECLARE FUNCTION zpy% ()
 DECLARE FUNCTION abso& ()
 DECLARE FUNCTION absx& ()
 DECLARE FUNCTION absy& ()
 DECLARE FUNCTION pre& ()
 DECLARE FUNCTION post& ()
-DECLARE FUNCTION zp& ()
-DECLARE FUNCTION breakpoint! ()
+DECLARE FUNCTION zp% ()
+DECLARE FUNCTION breakpoint& ()
 DECLARE SUB op.sbc (typ&)
 DECLARE SUB op.brk ()
 DECLARE SUB op.php ()
@@ -53,7 +53,7 @@ DECLARE SUB moveup ()
 DECLARE SUB loadfont ()
 DECLARE FUNCTION anybyte% (posi&)
 DECLARE SUB putbyte (byte%, posi&)
-DECLARE SUB hagla (x, y, text$)
+DECLARE SUB hagla (x%, y%, text$)
 DECLARE SUB op.branch ()
 DECLARE SUB op.tya ()
 DECLARE SUB op.adc (typ&)
@@ -88,7 +88,7 @@ DECLARE SUB op.tax ()
 DECLARE SUB op.tay ()
 DECLARE SUB emulate ()
 DECLARE SUB getinput ()
-DEFINT C, R
+DEFINT A-Z
 'Status: SV1BDIZC
 ' All registers must be shared
 PLAY "t240mll64"
@@ -130,7 +130,7 @@ DIM SHARED sweep1reload AS INTEGER, sweep2reload AS INTEGER
 DIM SHARED pulse1div AS INTEGER, pulse2div AS INTEGER
 DIM SHARED pulse1decay AS INTEGER, pulse2decay AS INTEGER
 DIM SHARED pulse1start AS INTEGER, pulse2start AS INTEGER
-ON ERROR GOTO 14
+REM ON ERROR GOTO 14
 GOTO 7
 14
 SCREEN 0
@@ -200,24 +200,24 @@ FUNCTION abso&
 pc = pc + 1
 a = anybyte(pc)
 pc = pc + 1
-b = anybyte(pc)
-abso = a + b * 256
+b& = anybyte(pc)
+abso& = a + b& * 256
 END FUNCTION
 
 FUNCTION absx&
 pc = pc + 1
 a = anybyte(pc)
 pc = pc + 1
-b = anybyte(pc)
-absx = (a + b * 256 + reg.x) AND 65535
+b& = anybyte(pc)
+absx = (a + b& * 256 + reg.x) AND 65535
 END FUNCTION
 
 FUNCTION absy&
 pc = pc + 1
 a = anybyte(pc)
 pc = pc + 1
-b = anybyte(pc)
-absy = (a + b * 256 + reg.y) AND 65535
+b& = anybyte(pc)
+absy = (a + b& * 256 + reg.y) AND 65535
 END FUNCTION
 
 FUNCTION anybyte% (posi AS LONG)
@@ -235,20 +235,20 @@ ELSEIF posi = &H2004 THEN
    anybyte% = sprram(sprramposi)
 ELSEIF posi = &H2007 THEN
    IF (ppu1 AND 4) THEN okn = 32 ELSE okn = 1
-   table = vramposi AND &HFC00
-   IF table = &H2400 THEN
+   table& = vramposi AND &HFC00
+   IF table& = &H2400 THEN
       IF mirroring = 0 THEN
          anybyte% = vram(vramposi XOR &H400)
       ELSE
          anybyte% = vram(vramposi)
       END IF
-   ELSEIF table = &H2800 THEN
+   ELSEIF table& = &H2800 THEN
       IF mirroring = 1 THEN
          anybyte% = vram(vramposi XOR &H800)
       ELSE
          anybyte% = vram(vramposi)
       END IF
-   ELSEIF table = &H2C00 THEN
+   ELSEIF table& = &H2C00 THEN
       IF mirroring = 0 THEN
          anybyte% = vram(vramposi XOR &H400)
       ELSE
@@ -268,7 +268,7 @@ ELSEIF posi = &H4016 THEN
 END IF
 END FUNCTION
 
-FUNCTION breakpoint
+FUNCTION breakpoint&
 COLOR 14
 hagla 400, 1, "breakpoint:"
 DO WHILE u = 0
@@ -302,7 +302,6 @@ hagla 450, 1, LCASE$(HEX$(bp4 \ 4096) + HEX$(bp3 \ 256) + HEX$(bp2 \ 16) + HEX$(
 RETURN
 END FUNCTION
 
-DEFINT A
 SUB cacophony
 IF ((apu(0) AND 32) <> 32) AND pulse1len > 0 THEN pulse1len = pulse1len - 2
 IF ((apu(4) AND 32) <> 32) AND pulse2len > 0 THEN pulse2len = pulse2len - 1
@@ -379,22 +378,21 @@ ELSEIF apumux = 2 THEN
       apunote$(2) = ""
    END IF
 END IF
-p% = 0
+p = 0
 IF fps <= 64 THEN
    FOR x = apumux TO apumux + 2
       y = x MOD 3
       IF apunote$(y) <> "" THEN
          PLAY apunote$(y)
-         p% = 1
+         p = 1
          EXIT FOR
       END IF
    NEXT x
-   IF p% = 0 THEN PLAY "p64"
+   IF p = 0 THEN PLAY "p64"
 END IF
 apumux = (apumux + 1) MOD 3
 END SUB
 
-DEFSNG A
 SUB config                          'Read the cfg file (rom directory) :)
 OPEN "uness.cfg" FOR INPUT AS #10
 INPUT #10, o$
@@ -415,7 +413,6 @@ ooo:
 END IF
 END SUB
 
-DEFINT A-B, X-Y
 SUB crappygfxengine
 'Background.
 'IF (ppu2 AND 8) THEN
@@ -446,19 +443,19 @@ NEXT c
 LOCATE 2, 63
 FOR c = 0 TO 15
    r = vram(&H3F10 + c) AND 63
-   mindiff = 300000
+   mindiff& = 300000
    best = 0
    FOR bc = 0 TO 15
-      rdiff = bgpal(bc, 0) - pal(r, 0)
-      gdiff = bgpal(bc, 1) - pal(r, 1)
-      bdiff = bgpal(bc, 2) - pal(r, 2)
-      diff = rdiff * rdiff + gdiff * gdiff + bdiff * bdiff
-      IF diff = 0 THEN
+      rdiff& = bgpal(bc, 0) - pal(r, 0)
+      gdiff& = bgpal(bc, 1) - pal(r, 1)
+      bdiff& = bgpal(bc, 2) - pal(r, 2)
+      diff& = rdiff& * rdiff& + gdiff& * gdiff& + bdiff& * bdiff&
+      IF diff& = 0 THEN
          best = bc
          EXIT FOR
-      ELSEIF diff < mindiff THEN
+      ELSEIF diff& < mindiff& THEN
          best = bc
-         mindiff = diff
+         mindiff& = diff&
       END IF
    NEXT bc
    sprpal(c) = best
@@ -669,12 +666,11 @@ IF ppu2 AND 16 THEN
 END IF
 END SUB
 
-DEFSNG A-B, X-Y
 SUB emulate
 future! = TIMER + 1
 second = 0
 FOR x& = 0 TO 2147483647
-    second = second + 1
+    second& = second + 1
     IF TIMER > future! THEN EXIT FOR
 NEXT
 
@@ -956,6 +952,7 @@ LOOP
 
 END SUB
 
+DEFSNG A-B, D-Q, S-Z
 FUNCTION filerequest$
 ' FileRequester 1.10 - New features : PageUp and PageDown can now be
 ' used.
@@ -1086,7 +1083,7 @@ EndThisSub:
 
 END FUNCTION
 
-DEFINT A
+DEFINT A-B, D-Q, S-Z
 SUB getinput
 in$ = INKEY$
 IF in$ <> "" THEN
@@ -1112,8 +1109,7 @@ IF in$ <> "" THEN
    END IF
 END SUB
 
-DEFSNG A
-SUB hagla (x, y, text$)
+SUB hagla (x AS INTEGER, y AS INTEGER, text$)
 FOR o = 1 TO LEN(text$)
    IF ASC(MID$(text$, o, 1)) > 96 AND ASC(MID$(text$, o, 1)) < 123 THEN
       hus = ASC(MID$(text$, o, 1)) - 97
@@ -1177,25 +1173,25 @@ IF prgs > 2 THEN
    END
 END IF
 
-posi = 17
+posi& = 17
 FOR x = 0 TO 16383
-   GET #1, posi, byte$
+   GET #1, posi&, byte$
    bank1(x) = ASC(byte$)                  'Read prg bank 1
    IF prgs = 1 THEN bank2(x) = ASC(byte$) 'Bank 2 is the same
-   posi = posi + 1
+   posi& = posi& + 1
 NEXT x
 IF prgs = 2 THEN                          'Bank 2 is different
    FOR x = 0 TO 16383
-      GET #1, posi, byte$
+      GET #1, posi&, byte$
       bank2(x) = ASC(byte$)
-      posi = posi + 1
+      posi& = posi& + 1
    NEXT x
 END IF
 
 FOR x = 0 TO 8191                         'Read pattern tables
-   GET #1, posi, byte$
+   GET #1, posi&, byte$
    vram(x) = ASC(byte$)
-   posi = posi + 1
+   posi& = posi& + 1
 NEXT x
 CLOSE #1
 'Reset vector: FFFC
@@ -1240,14 +1236,12 @@ NEXT c
 CLOSE #5
 END SUB
 
-DEFINT A
-FUNCTION hexpad$ (n&, p&)
+FUNCTION hexpad$ (n AS LONG, p AS INTEGER)
 z$ = "0000"
-h$ = LCASE$(HEX$(n&))
-IF LEN(h$) < p& THEN hexpad = LEFT$(z$, p& - LEN(h$)) + h$ ELSE hexpad = h$
+h$ = LCASE$(HEX$(n))
+IF LEN(h$) < p THEN hexpad = LEFT$(z$, p - LEN(h$)) + h$ ELSE hexpad = h$
 END FUNCTION
 
-DEFSNG A, C, R
 SUB loadfont
 OPEN "FONT.DAT" FOR BINARY AS #7
 byte$ = " "
@@ -1296,9 +1290,8 @@ NEXT x
 
 END SUB
 
-DEFINT C, R
 SUB moveup
-DIM block(180, 14)
+DIM block(180, 14) AS INTEGER
 FOR y = 14 TO 392 STEP 14
    GET (460, y)-(639, y + 14), block
    PUT (460, y - 14), block, PSET
@@ -1308,7 +1301,6 @@ PUT (460, 392), block, PSET
 LINE (460, 409)-(639, 423), 0, BF
 END SUB
 
-DEFINT A
 SUB op.adc (typ AS LONG)
 a = anybyte(typ)
 cc = (reg.s AND 1)
@@ -1326,7 +1318,6 @@ IF reg.a > 127 THEN reg.s = reg.s OR 128
 IF reg.a = 0 THEN reg.s = reg.s OR 2                         'Z?
 END SUB
 
-DEFSNG A
 SUB op.and (typ AS LONG)
 'AND: AND A with byte in memory
 r = anybyte(typ)
@@ -1348,7 +1339,6 @@ IF b% = 0 THEN reg.s = reg.s OR 2
 IF b% > 127 THEN reg.s = reg.s OR 128
 END SUB
 
-DEFINT B
 SUB op.bit (typ AS LONG)
 'BIT: AND byte in memory with A and transfer bit 7 and 8
 '     to the status register(!?)
@@ -1360,15 +1350,14 @@ IF a = 0 THEN reg.s = reg.s OR 2
 
 END SUB
 
-DEFSNG B
 SUB op.branch
 s = s + 1
 a = anybyte(pc)
 pc = pc + 1
-oldpc = pc
+oldpage = pc AND 256
 IF a > 127 THEN a = a - 256
 pc = pc + a
-IF (oldpc AND 256) <> (pc AND 256) THEN s = s + 1
+IF oldpage <> (pc AND 256) THEN s = s + 1
 pc = pc - 1
 END SUB
 
@@ -1376,10 +1365,10 @@ SUB op.brk
 'BRK: Just BRK... :(
 IF (reg.s AND 4) = 0 THEN
    pc = pc + 2
-   b% = (pc AND 65280) / 256
-   a% = (pc AND 255)
-   push b%
-   push a%
+   b = (pc AND 65280) / 256
+   a = (pc AND 255)
+   push b
+   push a
    push reg.s OR 16             'Push status with B set
    reg.s = reg.s OR 4
    pc = brk - 1
@@ -1437,7 +1426,6 @@ IF ((reg.y - r) AND 128) THEN reg.s = reg.s OR 128
 IF r < reg.y THEN reg.s = reg.s OR 1
 END SUB
 
-DEFINT B
 SUB op.dec (typ AS LONG)
 'DEC: Decrement byte in memory by 1
 b = anybyte(typ)
@@ -1449,7 +1437,6 @@ IF b > 127 THEN reg.s = reg.s OR 128
 putbyte b, typ
 END SUB
 
-DEFSNG B
 SUB op.dex
 'DEX: Decrement X by 1
 reg.x = reg.x - 1
@@ -1470,7 +1457,6 @@ IF reg.y > 127 THEN reg.s = reg.s OR 128  'S?
 s = s + 2
 END SUB
 
-DEFINT B
 SUB op.eor (typ AS LONG)
 'EOR: XOR A with byte in memory
 b = anybyte(typ)
@@ -1490,7 +1476,6 @@ IF b > 127 THEN reg.s = reg.s OR 128
 putbyte b, typ
 END SUB
 
-DEFSNG B
 SUB op.inx
 'INX: Increment X by 1
 reg.x = reg.x + 1
@@ -1522,13 +1507,13 @@ SELECT CASE typ
       s = s + 3
    CASE 2                          'Indirect. Two operand bytes.
       b& = abso
-      a = anybyte(b&)
+      a& = anybyte(b&)
       IF (b& AND 255) = 255 THEN
          b& = anybyte(b& - 255)
       ELSE
          b& = anybyte(b& + 1)
       END IF
-      pc = a + b& * 256 - 1
+      pc = a& + b& * 256 - 1
       s = s + 5
 END SELECT
 END SUB
@@ -1536,12 +1521,12 @@ END SUB
 SUB op.jsr
 'JSR: Push pc and jump
 pc = pc + 1
-a = anybyte(pc)
+a& = anybyte(pc)
 pc = pc + 1
-b = anybyte(pc)
+b& = anybyte(pc)
 push ((pc AND 65280) / 256)
 push (pc AND 255)
-pc = a + b * 256 - 1
+pc = a& + b& * 256 - 1
 s = s + 6
 END SUB
 
@@ -1580,7 +1565,6 @@ reg.s = reg.s AND 125
 IF b% = 0 THEN reg.s = reg.s OR 2
 END SUB
 
-DEFINT B
 SUB op.ora (typ AS LONG)
 'ORA: OR A with byte in memory
 b = anybyte(typ)
@@ -1590,7 +1574,6 @@ IF reg.a = 0 THEN reg.s = reg.s OR 2
 IF reg.a > 127 THEN reg.s = reg.s OR 128
 END SUB
 
-DEFSNG B
 SUB op.pha
 'PHA: Push A
 push reg.a
@@ -1620,7 +1603,6 @@ reg.s = pop
 s = s + 4
 END SUB
 
-DEFINT B
 SUB op.rol (typ AS LONG)
 'ROL: Rotate byte in memory left
 b = anybyte(typ)
@@ -1636,7 +1618,6 @@ IF b = 0 THEN reg.s = reg.s OR 2
 IF b > 127 THEN reg.s = reg.s OR 128
 END SUB
 
-DEFSNG B
 SUB op.ror (typ AS LONG)
 'ROR: Rotate byte in memory right
 c = anybyte(typ)
@@ -1654,19 +1635,18 @@ SUB op.rti
 'RTI: Return from interrupt
 reg.s = pop AND 239
 a = pop
-b = pop
-pc = a + b * 256 - 1
+b& = pop
+pc = a + b& * 256 - 1
 END SUB
 
 SUB op.rts
 'RTS: Pull pc
 a = pop              'First the low byte
-b = pop              'Then the high one :)
-pc = a + b * 256
+b& = pop              'Then the high one :)
+pc = a + b& * 256
 s = s + 6
 END SUB
 
-DEFINT A
 SUB op.sbc (typ AS LONG)
 a = anybyte(typ)
 cc = (reg.s AND 1) XOR 1
@@ -1688,7 +1668,6 @@ IF reg.a = 0 THEN reg.s = reg.s OR 2
 IF reg.a > 127 THEN reg.s = reg.s OR 128
 END SUB
 
-DEFSNG A
 SUB op.sec
 'SEC: Set carry flag
 reg.s = reg.s OR 1
@@ -1740,7 +1719,6 @@ IF reg.y > 127 THEN reg.s = reg.s OR 128
 s = s + 2
 END SUB
 
-DEFSNG C, R
 SUB op.tsx
 'TSX: Transfer stack pointer to X
 reg.x = reg.sp
@@ -1750,7 +1728,6 @@ IF reg.x > 127 THEN reg.s = reg.s OR 128
 s = s + 2
 END SUB
 
-DEFINT C, R
 SUB op.txa
 'TXA: Transfer X to A
 reg.a = reg.x
@@ -1775,7 +1752,6 @@ IF reg.a > 127 THEN reg.s = reg.s OR 128
 s = s + 2
 END SUB
 
-DEFINT A
 FUNCTION optostr$
 'Calling anybyte here (and in the str.* functions) means that any
 'side effects caused by the read (such as clearing bit 7 of $2002)
@@ -1972,7 +1948,6 @@ END SELECT
 optostr$ = o$
 END FUNCTION
 
-DEFSNG A
 SUB patterntables
 DIM linje(7)
 'Draw pattern tables from VRAM
@@ -2015,8 +1990,8 @@ FUNCTION post&
 pc = pc + 1
 c = anybyte(pc)
 a = anybyte(INT(c))
-b = anybyte((c + 1) AND 255)
-post = (a + (b * 256) + reg.y) AND 65535
+b& = anybyte((c + 1) AND 255)
+post = (a + (b& * 256) + reg.y) AND 65535
 END FUNCTION
 
 FUNCTION pre&
@@ -2024,11 +1999,10 @@ pc = pc + 1
 c = anybyte(pc)
 c = (c + reg.x) AND 255
 a = anybyte(INT(c))
-b = anybyte((c + 1) AND 255)
-pre = a + b * 256
+b& = anybyte((c + 1) AND 255)
+pre = a + b& * 256
 END FUNCTION
 
-DEFINT A
 FUNCTION pulse1mute%
 period = apu(2) + (apu(3) AND 7) * 256
 IF period < 8 THEN pulse1mute% = 1: EXIT FUNCTION
@@ -2048,43 +2022,42 @@ IF period + delta > &H7FF THEN pulse2mute% = 1 ELSE pulse2mute% = 0
 
 END FUNCTION
 
-DEFSNG A
 SUB push (r AS INTEGER)
 ram(256 + reg.sp) = r
 reg.sp = reg.sp - 1
 IF reg.sp < 0 THEN reg.sp = 255
 END SUB
 
-SUB putbyte (byte%, posi AS LONG)
+SUB putbyte (byte AS INTEGER, posi AS LONG)
 IF posi < &H800 THEN
-   ram(posi) = byte%
+   ram(posi) = byte
    'Ignore mirroring, it's rarely needed
 ELSEIF posi = &H2000 THEN
-   ppu1 = byte%
-   loopy.t = (loopy.t AND &HF3FF) OR ((byte% AND 3) * 1024)
-ELSEIF posi = &H2001 THEN ppu2 = byte%
-ELSEIF posi = &H2003 THEN sprramposi = byte%
+   ppu1 = byte
+   loopy.t = (loopy.t AND &HF3FF) OR ((byte AND 3) * 1024)
+ELSEIF posi = &H2001 THEN ppu2 = byte
+ELSEIF posi = &H2003 THEN sprramposi = byte
 ELSEIF posi = &H2004 THEN
-   sprram(sprramposi) = byte%
+   sprram(sprramposi) = byte
    sprramposi = sprramposi + 1
 ELSEIF posi = &H2005 THEN
    IF scrollwrite = 0 THEN
-      loopy.t = (loopy.t AND &HFFE0) OR (byte% \ 8)
-      loopy.x = byte% AND 7
-      hscroll = byte%
+      loopy.t = (loopy.t AND &HFFE0) OR (byte \ 8)
+      loopy.x = byte AND 7
+      hscroll = byte
       scrollwrite = 1
    ELSE
       loopy.t = (loopy.t AND &HC1F)
-      loopy.t = loopy.t OR ((byte% AND 248) * 4)
-      loopy.t = loopy.t OR ((byte% AND 7) * 4096)
+      loopy.t = loopy.t OR ((byte AND 248) * 4)
+      loopy.t = loopy.t OR ((byte AND 7) * 4096)
       scrollwrite = 0
    END IF
 ELSEIF posi = &H2006 THEN        'Change address for VRAM read/write
    IF scrollwrite = 0 THEN
-      loopy.t = (loopy.t AND 255) OR ((byte% AND 63) * 256)
+      loopy.t = (loopy.t AND 255) OR ((byte AND 63) * 256)
       scrollwrite = 1
    ELSE
-      loopy.t = (loopy.t AND &HFF00) OR byte%
+      loopy.t = (loopy.t AND &HFF00) OR byte
       vramposi = loopy.t
       sy = ((loopy.t AND &H3E0) \ 4) OR (loopy.t \ 4096)
       IF (loopy.t AND 2048) THEN sy = sy + 240
@@ -2101,61 +2074,61 @@ IF (ppu1 AND 4) THEN okn = 32 ELSE okn = 1
    table = vramposi AND &HFC00
    IF table = &H2400 THEN
       IF mirroring = 0 THEN
-         vram(vramposi XOR &H400) = byte%
+         vram(vramposi XOR &H400) = byte
       ELSE
-         vram(vramposi) = byte%
+         vram(vramposi) = byte
       END IF
    ELSEIF table = &H2800 THEN
       IF mirroring = 1 THEN
-         vram(vramposi XOR &H800) = byte%
+         vram(vramposi XOR &H800) = byte
       ELSE
-         vram(vramposi) = byte%
+         vram(vramposi) = byte
       END IF
    ELSEIF table = &H2C00 THEN
       IF mirroring = 0 THEN
-         vram(vramposi XOR &H400) = byte%
+         vram(vramposi XOR &H400) = byte
       ELSE
-         vram(vramposi XOR &H800) = byte%
+         vram(vramposi XOR &H800) = byte
       END IF
    ELSEIF (vramposi AND &H3F13) = &H3F10 THEN
-      vram(vramposi XOR 16) = byte%
+      vram(vramposi XOR 16) = byte
    ELSE
-      vram(vramposi) = byte%
+      vram(vramposi) = byte
    END IF
    vramposi = (vramposi + okn) AND 16383
 ELSEIF posi = &H4014 THEN
-   c = byte% * 256
+   c = byte * 256
    FOR x = 0 TO 255
       sprram(x) = ram(c + x)
    NEXT x
    s = s + 513
 ELSEIF posi = &H4016 THEN
-   IF (byte% AND 1) THEN
+   IF (byte AND 1) THEN
       IF joy1reset = 0 THEN joy1reset = 1
    ELSE
       IF joy1reset = 1 THEN joy1reset = 0: joy1reads = 1
    END IF
 ELSEIF posi >= &H4000 AND posi <= &H4017 THEN
-   apu(posi AND 31) = byte%
+   apu(posi AND 31) = byte
    IF posi = &H4001 THEN
       sweep1reload = 1
    ELSEIF posi = &H4003 THEN
-      IF apu(&H15) AND 1 THEN pulse1len = lengths(INT(byte% / 8))
+      IF apu(&H15) AND 1 THEN pulse1len = lengths(INT(byte / 8))
       pulse1start = 1
    ELSEIF posi = &H4005 THEN
       sweep2reload = 1
    ELSEIF posi = &H4007 THEN
-      IF apu(&H15) AND 2 THEN pulse2len = lengths(INT(byte% / 8))
+      IF apu(&H15) AND 2 THEN pulse2len = lengths(INT(byte / 8))
       pulse2start = 1
    ELSEIF posi = &H4008 THEN
-      IF byte% AND 128 THEN trianglelin = byte% AND 127
+      IF byte AND 128 THEN trianglelin = byte AND 127
    ELSEIF posi = &H400B THEN
-      IF apu(&H15) AND 4 THEN trianglelen = lengths(INT(byte% / 8))
+      IF apu(&H15) AND 4 THEN trianglelen = lengths(INT(byte / 8))
       trianglereload = 1
    ELSEIF posi = &H4015 THEN
-      IF byte% AND 1 = 0 THEN pulse1len = 0
-      IF byte% AND 2 = 0 THEN pulse2len = 0
-      IF byte% AND 4 = 0 THEN trianglelen = 0
+      IF byte AND 1 = 0 THEN pulse1len = 0
+      IF byte AND 2 = 0 THEN pulse2len = 0
+      IF byte AND 4 = 0 THEN trianglelen = 0
    END IF
 END IF
 END SUB
@@ -2174,7 +2147,6 @@ CLOSE #14
 
 END SUB
 
-DEFINT A
 FUNCTION str.abso$
 str.abso = " $" + hexpad$(anybyte(pc + 2), 2) + hexpad$(anybyte(pc + 1), 2)
 END FUNCTION
@@ -2255,7 +2227,6 @@ IF apu(5) AND 128 THEN
 END IF
 END SUB
 
-DEFSNG A
 SUB utskrift
 moveup
 COLOR 3
@@ -2313,10 +2284,10 @@ IF vblank = 0 THEN
       
       s = s + 7
       'Push pc
-      b% = (pc AND 65280) / 256
-      a% = (pc AND 255)
-      push b%
-      push a%
+      b = (pc AND 65280) / 256
+      a = (pc AND 255)
+      push b
+      push a
       push reg.s        'Push status
       reg.s = reg.s OR 4
       'opcode$ = "vblank: jumping to " + HEX$(nmi)
@@ -2326,8 +2297,8 @@ IF vblank = 0 THEN
    cacophony
    IF frame >= skip THEN frame = 0: crappygfxengine 'Draw graphics...
    fps = fps + 1
-   newtimer = TIMER
-   fpstime = newtimer - fpstimer
+   newtimer! = TIMER
+   fpstime = newtimer! - fpstimer
    IF fpstime >= 1 THEN
       IF fpstime >= 2 THEN fps = 0
       IF fps <> 60 THEN
@@ -2337,7 +2308,7 @@ IF vblank = 0 THEN
       LINE (340, 57)-(360, 64), 0, BF
       hagla 340, 57, LTRIM$(STR$(fps))
       fps = 0
-      fpstimer = newtimer
+      fpstimer = newtimer!
    END IF
    future! = TIMER + 1
    c& = 0
@@ -2361,26 +2332,25 @@ ELSE
 END IF
 END SUB
 
-FUNCTION zp&
+FUNCTION zp%
 pc = pc + 1
 a = anybyte(pc)
-zp = a
+zp% = a
 END FUNCTION
 
-DEFINT A
-FUNCTION zpx&
+FUNCTION zpx%
 pc = pc + 1
 a = anybyte(pc)
 a = a + reg.x
 IF (a AND 256) THEN a = a AND 255
-zpx = a
+zpx% = a
 END FUNCTION
 
-FUNCTION zpy&
+FUNCTION zpy%
 pc = pc + 1
 a = anybyte(pc)
 a = a + reg.y
 IF (a AND 256) THEN a = a AND 255
-zpy = a
+zpy% = a
 END FUNCTION
 
